@@ -1,0 +1,24 @@
+// src/routes/items.js
+const express = require('express');
+const router = express.Router();
+const { mockAuth } = require('../middleware/auth');
+const itemsController = require('../controllers/itemsController');
+
+router.use(mockAuth);
+
+// GET /api/items — все предметы
+router.get('/', itemsController.getAllItems);
+
+// GET /api/items/collected — собранные предметы пользователя
+router.get('/collected', itemsController.getCollectedItems);
+
+// GET /api/items/history — история сборов
+router.get('/history', itemsController.getCollectionHistory);
+
+// GET /api/items/rarities — все редкости
+router.get('/rarities', itemsController.getRarities);
+
+// GET /api/items/:itemId — конкретный предмет
+router.get('/:itemId', itemsController.getItemById);
+
+module.exports = router;
