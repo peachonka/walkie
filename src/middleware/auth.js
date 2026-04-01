@@ -21,7 +21,7 @@ function verifyToken(req, res, next) {
 }
 
 function mockAuth(req, res, next) {
-  req.userId = 1;
+  req.userId = '60a762b6-3d6f-4790-9998-2de78a472b34';
   next();
 }
 

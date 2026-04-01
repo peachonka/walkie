@@ -6,6 +6,9 @@ const petController = require('../controllers/petController');
 
 router.use(mockAuth);
 
+// POST /api/pet — создать питомца
+router.post('/', petController.createPet);
+
 // GET /api/pet — информация о питомце
 router.get('/', petController.getPet);
 
