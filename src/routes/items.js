@@ -10,10 +10,7 @@ router.use(mockAuth);
 router.get('/', itemsController.getAllItems);
 
 // GET /api/items/collected — собранные предметы пользователя
-router.get('/collected', itemsController.getCollectedItems);
-
-// GET /api/items/history — история сборов
-router.get('/history', itemsController.getCollectionHistory);
+router.get('/collected', itemsController.getUserItems);
 
 // GET /api/items/rarities — все редкости
 router.get('/rarities', itemsController.getRarities);

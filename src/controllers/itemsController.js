@@ -1,5 +1,5 @@
 // src/controllers/itemsController.js
-
+const supabase = require('../lib/supabaseClient');
 // ============================================================
 // ВРЕМЕННОЕ ХРАНИЛИЩЕ (МОКИ)
 // ============================================================
@@ -57,41 +57,42 @@ let collections = [
  */
 async function getAllItems(req, res) {
   try {
-    const userId = req.userId;
     const zoneId = req.query.zoneId ? parseInt(req.query.zoneId) : null;
-    
-    let filteredItems = [...items];
-    
-    // Фильтр по зоне
+
+    let query = supabase
+      .from('items')
+      .select(`
+        id,
+        name,
+        icon,
+        created_at,
+        rarity:rarity_id (
+          id,
+          type,
+          drop_chance
+        ),
+        zone:zone_id (
+          id,
+          name
+        )
+      `)
+      .order('created_at', { ascending: false });
+
     if (zoneId) {
-      filteredItems = filteredItems.filter(item => item.zoneId === zoneId);
+      query = query.eq('zone_id', zoneId);
     }
-    
-    // Добавляем информацию о редкости и зоне
-    const result = filteredItems.map(item => {
-      const itemRarity = rarity.find(r => r.id === item.rarityId);
-      const itemZone = zones.find(z => z.id === item.zoneId);
-      
-      return {
-        id: item.id,
-        name: item.name,
-        icon: item.icon,
-        rarity: {
-          id: itemRarity.id,
-          type: itemRarity.type,
-          dropChance: itemRarity.dropChance
-        },
-        zone: itemZone ? {
-          id: itemZone.id,
-          name: itemZone.name
-        } : null
-      };
-    });
-    
+
+    const { data, error } = await query;
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
     res.json({
-      total: result.length,
-      items: result
+      total: data.length,
+      items: data
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -104,29 +105,36 @@ async function getAllItems(req, res) {
 async function getItemById(req, res) {
   try {
     const itemId = parseInt(req.params.itemId);
-    
-    const item = items.find(i => i.id === itemId);
-    if (!item) {
+
+    const { data, error } = await supabase
+      .from('items')
+      .select(`
+        id,
+        name,
+        icon,
+        rarity:rarity_id (
+          id,
+          type,
+          drop_chance
+        ),
+        zone:zone_id (
+          id,
+          name
+        )
+      `)
+      .eq('id', itemId)
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!data) {
       return res.status(404).json({ error: 'Item not found' });
     }
-    
-    const itemRarity = rarity.find(r => r.id === item.rarityId);
-    const itemZone = zones.find(z => z.id === item.zoneId);
-    
-    res.json({
-      id: item.id,
-      name: item.name,
-      icon: item.icon,
-      rarity: {
-        id: itemRarity.id,
-        type: itemRarity.type,
-        dropChance: itemRarity.dropChance
-      },
-      zone: itemZone ? {
-        id: itemZone.id,
-        name: itemZone.name
-      } : null
-    });
+
+    res.json(data);
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -139,121 +147,51 @@ async function getItemById(req, res) {
  * Query параметры:
  * - limit (опционально, по умолчанию 50)
  * - offset (опционально, по умолчанию 0)
+ * 
+ * Сортировка по времени получения
  */
-async function getCollectedItems(req, res) {
+async function getUserItems(req, res) {
   try {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
-    
-    // Получаем все коллекции пользователя
-    const userCollections = collections.filter(c => c.UserId === userId);
-    
-    // Группируем по предметам для подсчета количества
-    const itemCountMap = new Map();
-    for (const col of userCollections) {
-      const count = itemCountMap.get(col.ItemId) || 0;
-      itemCountMap.set(col.ItemId, count + 1);
+
+    const { data, error } = await supabase
+      .from('user_item')
+      .select(`
+        id,
+        created_at,
+        walk_id,
+        item:items (
+          id,
+          name,
+          icon,
+          rarity:rarity_id (
+            type,
+            drop_chance
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
-    
-    // Формируем результат
-    let result = [];
-    for (const [itemId, count] of itemCountMap) {
-      const item = items.find(i => i.id === itemId);
-      if (item) {
-        const itemRarity = rarity.find(r => r.id === item.rarityId);
-        result.push({
-          id: item.id,
-          name: item.name,
-          icon: item.icon,
-          rarity: {
-            type: itemRarity.type,
-            dropChance: itemRarity.dropChance
-          },
-          count: count
-        });
-      }
-    }
-    
-    // Сортируем по редкости (сначала легендарные) и по имени
-    result.sort((a, b) => {
-      const rarityOrder = { legendary: 0, rare: 1, common: 2 };
-      const rarityDiff = rarityOrder[a.rarity.type] - rarityOrder[b.rarity.type];
-      if (rarityDiff !== 0) return rarityDiff;
-      return a.name.localeCompare(b.name);
-    });
-    
-    // Пагинация
-    const total = result.length;
-    const paginatedResult = result.slice(offset, offset + limit);
-    
+
     res.json({
-      total: total,
-      limit: limit,
-      offset: offset,
-      items: paginatedResult
+      total: data.length,
+      limit,
+      offset,
+      items: data
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
 
-/**
- * Получить историю сборов предметов (с привязкой к прогулкам)
- * GET /api/items/history
- * 
- * Query параметры:
- * - limit (опционально, по умолчанию 50)
- * - offset (опционально, по умолчанию 0)
- */
-async function getCollectionHistory(req, res) {
-  try {
-    const userId = req.userId;
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
-    
-    // Получаем все коллекции пользователя, сортируем от новых к старым
-    // В моках нет времени сбора, поэтому сортируем по id (чем больше id, тем новее)
-    const userCollections = collections
-      .filter(c => c.UserId === userId)
-      .sort((a, b) => b.id - a.id);
-    
-    // Пагинация
-    const paginatedCollections = userCollections.slice(offset, offset + limit);
-    
-    // Добавляем информацию о предметах
-    const result = [];
-    for (const col of paginatedCollections) {
-      const item = items.find(i => i.id === col.ItemId);
-      if (item) {
-        const itemRarity = rarity.find(r => r.id === item.rarityId);
-        result.push({
-          id: col.id,
-          item: {
-            id: item.id,
-            name: item.name,
-            icon: item.icon,
-            rarity: {
-              type: itemRarity.type,
-              dropChance: itemRarity.dropChance
-            }
-          },
-          walk_id: col.WalkId,
-          collected_at: null
-        });
-      }
-    }
-    
-    res.json({
-      total: userCollections.length,
-      limit: limit,
-      offset: offset,
-      collections: result
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
 
 /**
  * Получить редкости предметов
@@ -261,13 +199,18 @@ async function getCollectionHistory(req, res) {
  */
 async function getRarities(req, res) {
   try {
+    const { data, error } = await supabase
+      .from('rarity')
+      .select('*');
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
     res.json({
-      rarities: rarity.map(r => ({
-        id: r.id,
-        type: r.type,
-        dropChance: r.dropChance
-      }))
+      rarities: data
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -276,7 +219,6 @@ async function getRarities(req, res) {
 module.exports = {
   getAllItems,
   getItemById,
-  getCollectedItems,
-  getCollectionHistory,
+  getUserItems,
   getRarities
 };
