@@ -1,37 +1,6 @@
 // src/controllers/petController.js
 const supabase = require('../lib/supabaseClient');
 // ============================================================
-// ВРЕМЕННОЕ ХРАНИЛИЩЕ (МОКИ)
-// ============================================================
-
-// pets —  ERD: id, Type, Avatar
-const pets = [
-  { id: 1, type: 'dog', avatar: '/avatars/dog_default.png' },
-  { id: 2, type: 'cat', avatar: '/avatars/cat_default.png' },
-  { id: 3, type: 'bird', avatar: '/avatars/bird_default.png' },
-  { id: 4, type: 'hamster', avatar: '/avatars/hamster_default.png' }
-];
-
-// user_pets —  ERD: id, UserId, PetId, Name, Level, Exp
-let userPets = [
-  { id: 1, UserId: 1, PetId: 1, Name: 'Бобик', Level: 5, Exp: 320 }
-];
-
-// items — для использования предметов
-const items = [
-  { id: 1, name: 'Листочек', rarityId: 1, zoneId: 1, icon: '/icons/leaf.png' },
-  { id: 10, name: 'Яблоко', rarityId: 1, zoneId: null, icon: '/icons/apple.png' },
-  { id: 11, name: 'Морковка', rarityId: 1, zoneId: null, icon: '/icons/carrot.png' }
-];
-
-// collections — для проверки, есть ли предмет у пользователя
-let collections = [
-  { id: 1, UserId: 1, ItemId: 10, WalkId: 1 },
-  { id: 2, UserId: 1, ItemId: 11, WalkId: 2 },
-  { id: 3, UserId: 1, ItemId: 1, WalkId: 3 }
-];
-
-// ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
