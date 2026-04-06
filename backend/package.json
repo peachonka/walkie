@@ -8,8 +8,6 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "@nativescript/android": "^9.0.2",
-    "@nativescript/core": "^9.0.18",
     "@supabase/supabase-js": "^2.101.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
