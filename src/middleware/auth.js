@@ -1,4 +1,8 @@
 const jwt = require('jsonwebtoken');
+<<<<<<< HEAD
+=======
+const supabase = require('../lib/supabaseClient');
+>>>>>>> 50318123edf43ae04403988df9a7bd10109516a1
 
 const JWT_SECRET = process.env.JWT_SECRET || 'walkie-super-secret-key-for-development';
 
@@ -25,4 +29,43 @@ function mockAuth(req, res, next) {
   next();
 }
 
+<<<<<<< HEAD
 module.exports = { verifyToken, mockAuth };
+=======
+async function authMiddleware(req, res, next) {
+  try {
+    // 1. Проверяем header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No authorization header' });
+    }
+
+    // 2. Достаём токен
+    const token = authHeader.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    // 3. Проверяем токен через Supabase
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // 4. Кладём userId в req
+    req.userId = data.user.id;
+    req.user = data.user;
+
+    next();
+  } catch (err) {
+    console.error('Auth error:', err);
+    res.status(500).json({ error: 'Internal auth error' });
+  }
+}
+
+
+module.exports = { verifyToken, mockAuth, authMiddleware };
+>>>>>>> 50318123edf43ae04403988df9a7bd10109516a1

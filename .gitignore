@@ -2,6 +2,10 @@ node_modules/
 .env
 *.log
 .DS_Store
+<<<<<<< HEAD
 package-lock.json
 vue/node_modules/
 vue/platforms/
+=======
+package-lock.json
+>>>>>>> 50318123edf43ae04403988df9a7bd10109516a1
