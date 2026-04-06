@@ -1,0 +1,24 @@
+{
+  "name": "walkie-vue",
+  "version": "1.0.0",
+  "description": "Walkie game mobile app",
+  "main": "app/app.ts",
+  "scripts": {
+    "android": "ns run android",
+    "ios": "ns run ios"
+  },
+  "dependencies": {
+    "@nativescript/android": "^9.0.2",
+    "@nativescript/core": "^9.0.18",
+    "@nativescript/geolocation": "^9.0.0",
+    "@nativescript/webpack": "^5.0.0",
+    "@supabase/supabase-js": "^2.101.0",
+    "nativescript-vue": "^2.9.3",
+    "vue": "^2.7.16",
+    "vue-template-compiler": "^2.7.16"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "vue-loader": "^15.11.1"
+  }
+}
