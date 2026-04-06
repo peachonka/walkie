@@ -1,10 +1,11 @@
 // src/routes/items.js
 const express = require('express');
 const router = express.Router();
-const { mockAuth } = require('../middleware/auth');
+const { mockAuth, authMiddleware } = require('../middleware/auth');
 const itemsController = require('../controllers/itemsController');
 
-router.use(mockAuth);
+// router.use(mockAuth);
+router.use(authMiddleware);
 
 // GET /api/items — все предметы
 router.get('/', itemsController.getAllItems);

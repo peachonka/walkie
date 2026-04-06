@@ -1,10 +1,11 @@
 // src/routes/achievements.js
 const express = require('express');
 const router = express.Router();
-const { mockAuth } = require('../middleware/auth');
+const { mockAuth, authMiddleware } = require('../middleware/auth');
 const achievementsController = require('../controllers/achievementsController');
 
-router.use(mockAuth);
+// router.use(mockAuth);
+router.use(authMiddleware);
 
 // GET /api/achievements — все достижения (с целями)
 router.get('/', achievementsController.getAllAchievements);

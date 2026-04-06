@@ -1,10 +1,11 @@
 // src/routes/pet.js
 const express = require('express');
 const router = express.Router();
-const { mockAuth } = require('../middleware/auth');
+const { mockAuth, authMiddleware } = require('../middleware/auth');
 const petController = require('../controllers/petController');
 
-router.use(mockAuth);
+// router.use(mockAuth);
+router.use(authMiddleware);
 
 // POST /api/pet — создать питомца
 router.post('/', petController.createPet);

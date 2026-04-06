@@ -1,12 +1,13 @@
 // src/routes/zones.js
 const express = require('express');
 const router = express.Router();
-const { mockAuth } = require('../middleware/auth');
+const { mockAuth, authMiddleware } = require('../middleware/auth');
 const zonesController = require('../controllers/zonesController');
 
 // Все маршруты зон доступны без авторизации (для отображения на карте)
 // Но для проверки точки используем mockAuth для совместимости
-router.use(mockAuth);
+// router.use(mockAuth);
+router.use(authMiddleware);
 
 // GET /api/zones — все зоны
 router.get('/', zonesController.getAllZones);

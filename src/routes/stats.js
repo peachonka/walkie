@@ -1,10 +1,11 @@
 // src/routes/stats.js
 const express = require('express');
 const router = express.Router();
-const { mockAuth } = require('../middleware/auth');
+const { mockAuth, authMiddleware } = require('../middleware/auth');
 const statsController = require('../controllers/statsController');
 
-router.use(mockAuth);
+// router.use(mockAuth);
+router.use(authMiddleware);
 
 // GET /api/stats — общая статистика
 router.get('/', statsController.getUserStats);
