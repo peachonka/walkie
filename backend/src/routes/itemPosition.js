@@ -1,18 +1,11 @@
 // src/routes/itemPosition.js
 const express = require('express');
 const router = express.Router();
-<<<<<<< HEAD
-const { mockAuth } = require('../middleware/auth');
-const itemPositionController = require('../controllers/itemPositionController');
-
-router.use(mockAuth);
-=======
 const { mockAuth, authMiddleware } = require('../middleware/auth');
 const itemPositionController = require('../controllers/itemPositionController');
 
 // router.use(mockAuth);
 router.use(authMiddleware);
->>>>>>> 50318123edf43ae04403988df9a7bd10109516a1
 
 // GET /api/item-positions — все размещенные предметы
 router.get('/', itemPositionController.getAllItemPositions);
