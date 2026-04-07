@@ -66,6 +66,7 @@ import ForgotPassword from './ForgotPassword.vue';
 import Home from './Home.vue';
 
 export default Vue.extend({
+  name: 'Login',
   data() {
     return {
       email: '',
@@ -74,7 +75,6 @@ export default Vue.extend({
       errorMessage: ''
     };
   },
-
   methods: {
     async handleLogin() {
       if (!this.email || !this.password) {
@@ -85,26 +85,29 @@ export default Vue.extend({
       this.loading = true;
       this.errorMessage = '';
 
-      const result = await authService.login({
-        email: this.email,
-        password: this.password
-      });
-
-      this.loading = false;
-
-      if (result.status === 'success') {
-        this.$navigateTo(Home, {
-          clearHistory: true
+      try {
+        const result = await authService.login({
+          email: this.email,
+          password: this.password
         });
-      } else {
-        this.errorMessage = result.message || 'Login failed';
+
+        this.loading = false;
+
+        if (result.status === 'success') {
+          this.$navigateTo(Home, {
+            clearHistory: true
+          });
+        } else {
+          this.errorMessage = result.message || 'Login failed';
+        }
+      } catch (error) {
+        this.loading = false;
+        this.errorMessage = 'Connection error';
       }
     },
-
     goToRegister() {
       this.$navigateTo(Register);
     },
-
     goToForgotPassword() {
       this.$navigateTo(ForgotPassword);
     }
@@ -113,5 +116,13 @@ export default Vue.extend({
 </script>
 
 <style scoped lang="scss">
-/* Стили для компонента Login */
+.input {
+  border-width: 1;
+  border-color: #e5e7eb;
+}
+
+.btn {
+  background-color: #3b82f6;
+  color: white;
+}
 </style>
