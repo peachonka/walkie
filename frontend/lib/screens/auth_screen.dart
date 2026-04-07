@@ -97,14 +97,11 @@ class _AuthScreenState extends State<AuthScreen> {
     
     // Адаптивная ширина для полей ввода
     final double inputWidth = screenWidth - 76 > 316 ? 316 : screenWidth - 76;
-    // Адаптивная ширина для кнопки
-    final double buttonWidth = _isSignUp 
-        ? (screenWidth - 76 > 260 ? 260 : screenWidth - 76)
-        : (screenWidth - 215 > 178 ? 178 : screenWidth - 215);
-    
-    // Ограничиваем минимальную ширину
     final double finalInputWidth = inputWidth < 260 ? 260 : inputWidth;
-    final double finalButtonWidth = buttonWidth < (_isSignUp ? 200 : 120) ? (_isSignUp ? 200 : 120) : buttonWidth;
+    
+    // Кнопка теперь такой же ширины, как поля ввода
+    final double buttonWidth = _isSignUp ? finalInputWidth : (screenWidth - 215 > 178 ? 178 : screenWidth - 215);
+    final double finalButtonWidth = _isSignUp ? buttonWidth : (buttonWidth < 120 ? 120 : buttonWidth);
     
     return Scaffold(
       appBar: null,
@@ -119,14 +116,15 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 40),
+                  // Отступ сверху
+                  const SizedBox(height: 150),
                   
                   // Логотип WALKIE
                   const Text(
@@ -142,7 +140,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       color: logoColor,
                     ),
                   ),
-                  const SizedBox(height: 20), // Уменьшил в 2 раза (было 40)
+                  const SizedBox(height: 30),
                   
                   // Заголовок (Авторизация/Регистрация)
                   Text(
@@ -158,7 +156,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       color: Color.fromRGBO(61, 0, 102, 1),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 48),
                   
                   // Форма
                   Form(
@@ -182,14 +180,12 @@ class _AuthScreenState extends State<AuthScreen> {
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
                             style: const TextStyle(
-                              fontFamily: 'Pangolin',
                               fontSize: 16,
                               color: Color.fromRGBO(61, 0, 102, 1),
                             ),
                             decoration: InputDecoration(
                               hintText: 'Email',
                               hintStyle: const TextStyle(
-                                fontFamily: 'Pangolin',
                                 fontSize: 16,
                                 color: Color.fromRGBO(120, 117, 126, 0.5),
                               ),
@@ -232,14 +228,12 @@ class _AuthScreenState extends State<AuthScreen> {
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
                             style: const TextStyle(
-                              fontFamily: 'Pangolin',
                               fontSize: 16,
                               color: Color.fromRGBO(61, 0, 102, 1),
                             ),
                             decoration: InputDecoration(
                               hintText: 'Пароль',
                               hintStyle: const TextStyle(
-                                fontFamily: 'Pangolin',
                                 fontSize: 16,
                                 color: Color.fromRGBO(120, 117, 126, 0.5),
                               ),
@@ -288,7 +282,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               backgroundColor: const Color(0xFFFFF1D5),
                               foregroundColor: const Color(0xFF827454),
                               disabledBackgroundColor: Colors.grey,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                                 side: const BorderSide(
@@ -310,19 +304,19 @@ class _AuthScreenState extends State<AuthScreen> {
                                 : Text(
                                     _isSignUp ? 'Зарегистрироваться' : 'Войти',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontFamily: 'Sigmar Cyrillic',
                                       fontWeight: FontWeight.w400,
                                       fontStyle: FontStyle.normal,
-                                      fontSize: _isSignUp ? 16 : 20,
+                                      fontSize: 20,
                                       height: 1.0,
                                       letterSpacing: 0,
-                                      color: const Color(0xFF827454),
+                                      color: Color(0xFF827454),
                                     ),
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         
                         // Кнопка "или зарегистрироваться" / "или войти"
                         GestureDetector(
@@ -333,9 +327,6 @@ class _AuthScreenState extends State<AuthScreen> {
                                 : 'или зарегистрироваться',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontFamily: 'Pangolin',
-                              fontWeight: FontWeight.w400,
-                              fontStyle: FontStyle.normal,
                               fontSize: 16,
                               height: 1.2,
                               letterSpacing: 0,
