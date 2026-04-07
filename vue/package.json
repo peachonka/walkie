@@ -20,6 +20,7 @@
     "@nativescript/android": "9.0.2",
     "@nativescript/preview-cli": "1.0.14",
     "@types/node": "^25.5.2",
-    "vue-loader": "^15.11.1"
+    "vue-loader": "^17.4.2",
+    "vue-template-compiler": "^2.7.16"
   }
 }
