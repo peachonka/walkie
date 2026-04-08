@@ -3,49 +3,49 @@ import '../../theme/app_theme.dart';
 import 'pet_card_widget.dart';
 import '../common/custom_button.dart';
 
-class PetSelectionWidget extends StatelessWidget {
-  final VoidCallback onSelectPet;
-  final VoidCallback onCancel;
+class PetSelectionWidget extends StatefulWidget {
+  final void Function(int selectedPetIndex)? onSelectPet;
+  final VoidCallback? onCancel;
 
   const PetSelectionWidget({
     super.key,
-    required this.onSelectPet,
-    required this.onCancel,
+    this.onSelectPet,
+    this.onCancel,
   });
+
+  @override
+  State<PetSelectionWidget> createState() => _PetSelectionWidgetState();
+}
+
+class _PetSelectionWidgetState extends State<PetSelectionWidget> {
+  int? _selectedPetIndex;  // null = ничего не выбрано
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 852,
-      height: 393,
+      width: double.infinity,
+      height: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment(-0.6031836271286011, 0.1613570749759674),
-          end: Alignment(-0.1613570749759674, -0.1283380538225174),
-          colors: const [
-            Color.fromRGBO(247, 239, 225, 0.7),
-            Color.fromRGBO(252, 245, 237, 1),
-          ],
-        ),
+        color: Colors.black,
       ),
       child: Stack(
         children: [
-          Positioned(
-            top: 71,
-            left: 781,
-            child: _buildIconButton(),
+          Container(
+            child: _buildPetSelectionContent(),
           ),
+          
+          // Кнопка "Выбрать"
           Positioned(
-            top: 0,
-            left: 0,
-            child: _buildPetSelectionContent(onSelectPet),
-          ),
-          Positioned(
-            top: 320,
-            left: 635,
+            bottom: 30,
+            right: 40,
             child: CustomButton(
               text: 'Выбрать',
-              onPressed: onSelectPet,
+              isEnabled: _selectedPetIndex != null,
+              onPressed: () {
+                if (_selectedPetIndex != null) {
+                  widget.onSelectPet?.call(_selectedPetIndex!);
+                }
+              },
             ),
           ),
         ],
@@ -53,73 +53,69 @@ class PetSelectionWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildIconButton() {
-    return Container(
-      width: 48,
-      height: 48,
+  Widget _buildPetSelectionContent() {
+  return Container(
+    width: double.infinity,
+    height: double.infinity,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(24),
+      color: AppTheme.secondaryColor,
+      border: Border.all(color: AppTheme.primaryColor, width: 2),
+    ),
+    padding: const EdgeInsets.all(8),
+    child: Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        color: AppTheme.secondaryColor,
+        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.backgroundColor,
         border: Border.all(color: AppTheme.primaryColor, width: 2),
       ),
-      child: Stack(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: 8,
-            left: 39,
-            child: Container(
-              width: 32,
-              height: 32,
-              color: Colors.white,
-              // SVG icon here
+          const Text(
+            'Выберите питомца',
+            style: TextStyle(
+              color: AppTheme.primaryColor,
+              fontFamily: 'Sigmar Cyrillic',
+              fontSize: 20,
             ),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPetCard(
+                index: 0,
+                color: const Color.fromRGBO(171, 204, 151, 1),
+              ),
+              const SizedBox(width: 32),
+              _buildPetCard(
+                index: 1,
+                color: const Color.fromRGBO(228, 198, 140, 1),
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildPetSelectionContent(VoidCallback onSelectPet) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: AppTheme.secondaryColor,
-        border: Border.all(color: AppTheme.primaryColor, width: 2),
-      ),
-      padding: const EdgeInsets.all(8),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: AppTheme.backgroundColor,
-          border: Border.all(color: AppTheme.primaryColor, width: 2),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Выберите питомца',
-              style: TextStyle(
-                color: AppTheme.primaryColor,
-                fontFamily: 'Sigmar Cyrillic',
-                fontSize: 20,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PetCardWidget(
-                  backgroundColor: const Color.fromRGBO(171, 204, 151, 1),
-                ),
-                const SizedBox(width: 32),
-                PetCardWidget(
-                  backgroundColor: const Color.fromRGBO(228, 198, 140, 1),
-                ),
-              ],
-            ),
-          ],
-        ),
+  Widget _buildPetCard({required int index, required Color color}) {
+    final isSelected = _selectedPetIndex == index;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedPetIndex = index;
+        });
+      },
+      child: PetCardWidget(
+        petIndex: index,
+        backgroundColor: color,
+        isSelected: isSelected,  // ← Добавьте этот параметр в PetCardWidget
       ),
     );
   }
