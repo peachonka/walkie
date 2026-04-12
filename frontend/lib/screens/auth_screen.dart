@@ -29,6 +29,12 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void initState() {
     super.initState();
+    
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    
     _initPreferences();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAuth();
@@ -90,7 +96,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         
         if (response.user != null) {
-          print('Регистрация успешна!');
+          print('Регистрация успешна');
           print('Пользователь: ${response.user!.email}');
           print('User ID: ${response.user!.id}');
           
@@ -119,7 +125,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         
         if (response.user != null) {
-          print('Авторизация успешна!');
+          print('Авторизация успешна');
           print('Пользователь: ${response.user!.email}');
           print('User ID: ${response.user!.id}');
           

@@ -3,7 +3,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/app_theme.dart';
 
 class GameMenuButtons extends StatelessWidget {
-  const GameMenuButtons({super.key});
+  final VoidCallback? onLogout;
+
+  const GameMenuButtons({
+    super.key,
+    this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -12,24 +17,32 @@ class GameMenuButtons extends StatelessWidget {
       children: [
         _buildMenuButton(
           iconPath: 'assets/icons/chart-spline.svg',
-          onPressed: () {},
+          onPressed: () {
+            print('-- Статистика');
+          },
         ),
         const SizedBox(height: 12),
         _buildMenuButton(
           iconPath: 'assets/icons/shelving-unit.svg',
-          onPressed: () {},
+          onPressed: () {
+            print('-- Коллекция');
+          },
         ),
         const SizedBox(height: 12),
         _buildMenuButton(
           iconPath: 'assets/icons/map.svg',
-          onPressed: () {},
+          onPressed: () {
+            print('-- Карта');
+          },
         ),
+        const SizedBox(height: 12),
+        _buildLogoutButton(),
       ],
     );
   }
 
   Widget _buildMenuButton({
-    required String iconPath, // Теперь путь к файлу
+    required String iconPath,
     required VoidCallback onPressed,
   }) {
     return GestureDetector(
@@ -51,6 +64,28 @@ class GameMenuButtons extends StatelessWidget {
               AppTheme.primaryColor,
               BlendMode.srcIn,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return GestureDetector(
+      onTap: onLogout,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: AppTheme.secondaryColor,
+          border: Border.all(color: AppTheme.primaryColor, width: 2),
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.logout,
+            size: 32,
+            color: AppTheme.primaryColor,
           ),
         ),
       ),
