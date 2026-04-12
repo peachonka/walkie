@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Цвета из дизайна
 const Color primaryColor = Color(0xFF135B78);
 const Color accentColor = Color(0xFF2C6E8A);
 const Color logoColor = Color(0xFF3D0066);
@@ -21,19 +22,25 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isSignUp = false;
   bool _obscurePassword = true;
 
+  final supabase = Supabase.instance.client;
+
   @override
   void initState() {
     super.initState();
+    _checkAuth();
+  }
+
+  void _checkAuth() {
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      _navigateToHome();
+    }
   }
 
   void _navigateToHome() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Успешный вход! (демо-режим)'),
-        backgroundColor: primaryColor,
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
 
@@ -41,35 +48,66 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      
+    try {
       final email = _emailController.text.trim();
-      final userName = email.split('@')[0];
-      
+      final password = _passwordController.text.trim();
+
       if (_isSignUp) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✨ Регистрация успешна! Добро пожаловать, $userName!'),
-            backgroundColor: primaryColor,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
+        await supabase.auth.signUp(
+          email: email,
+          password: password,
         );
-        setState(() => _isSignUp = false);
-        _passwordController.clear();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✨ Регистрация успешна! Теперь войдите.'),
+              backgroundColor: primaryColor,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          setState(() {
+            _isSignUp = false;
+            _passwordController.clear();
+          });
+        }
       } else {
+        await supabase.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+        
+        if (mounted) {
+          _navigateToHome();
+        }
+      }
+    } on AuthException catch (error) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✨ Добро пожаловать, $userName!'),
-            backgroundColor: primaryColor,
+            content: Text(error.message),
+            backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
-        _navigateToHome();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $error'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -92,14 +130,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Получаем ширину экрана
     final screenWidth = MediaQuery.of(context).size.width;
-    
-    // Адаптивная ширина для полей ввода
     final double inputWidth = screenWidth - 76 > 316 ? 316 : screenWidth - 76;
     final double finalInputWidth = inputWidth < 260 ? 260 : inputWidth;
-    
-    // Кнопка теперь такой же ширины, как поля ввода
     final double buttonWidth = _isSignUp ? finalInputWidth : (screenWidth - 215 > 178 ? 178 : screenWidth - 215);
     final double finalButtonWidth = _isSignUp ? buttonWidth : (buttonWidth < 120 ? 120 : buttonWidth);
     
@@ -123,10 +156,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Отступ сверху
                   const SizedBox(height: 150),
                   
-                  // Логотип WALKIE
                   const Text(
                     'Walkie',
                     textAlign: TextAlign.center,
@@ -142,7 +173,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 30),
                   
-                  // Заголовок (Авторизация/Регистрация)
                   Text(
                     _isSignUp ? 'Регистрация' : 'Авторизация',
                     textAlign: TextAlign.center,
@@ -158,12 +188,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 48),
                   
-                  // Форма
                   Form(
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Поле Email
                         Container(
                           width: finalInputWidth,
                           height: 42,
@@ -211,7 +239,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 27),
                         
-                        // Поле Пароль
                         Container(
                           width: finalInputWidth,
                           height: 42,
@@ -272,7 +299,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 42),
                         
-                        // Кнопка (Войти или Зарегистрироваться)
                         SizedBox(
                           width: finalButtonWidth,
                           height: 42,
@@ -318,7 +344,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        // Кнопка "или зарегистрироваться" / "или войти"
                         GestureDetector(
                           onTap: _isLoading ? null : _toggleMode,
                           child: Text(

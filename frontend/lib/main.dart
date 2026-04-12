@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/auth_screen.dart';
+import 'screens/home_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: '',  // Вставьте ваш URL
+    anonKey: '',  // Вставьте ваш ключ
+  );
+  
   runApp(const MyApp());
 }
 
@@ -14,14 +23,21 @@ class MyApp extends StatelessWidget {
       title: 'Walkie',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Inter',
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF135B78),
-          brightness: Brightness.light,
-        ),
       ),
-      home: const AuthScreen(),
+      home: StreamBuilder<AuthState>(
+        stream: Supabase.instance.client.auth.onAuthStateChange,
+        builder: (context, snapshot) {
+          // Проверяем, есть ли сессия
+          final session = snapshot.data?.session;
+          
+          if (session != null) {
+            return const HomeScreen();
+          }
+          
+          return const AuthScreen();
+        },
+      ),
     );
   }
 }
