@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/auth_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  await dotenv.load(fileName: ".env");
+  
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+  
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env file');
+  }
+  
   await Supabase.initialize(
-    url: '',  // Вставьте ваш URL
-    anonKey: '',  // Вставьте ваш ключ
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
   
   runApp(const MyApp());
@@ -28,11 +38,10 @@ class MyApp extends StatelessWidget {
       home: StreamBuilder<AuthState>(
         stream: Supabase.instance.client.auth.onAuthStateChange,
         builder: (context, snapshot) {
-          // Проверяем, есть ли сессия
           final session = snapshot.data?.session;
           
           if (session != null) {
-            return const HomeScreen();
+            return const SplashScreen();
           }
           
           return const AuthScreen();

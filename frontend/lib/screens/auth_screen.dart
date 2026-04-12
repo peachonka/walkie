@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'home_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'splash_screen.dart';
 
 const Color primaryColor = Color(0xFF135B78);
 const Color accentColor = Color(0xFF2C6E8A);
@@ -23,25 +24,52 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscurePassword = true;
 
   final supabase = Supabase.instance.client;
+  late SharedPreferences _prefs;
 
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _initPreferences();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuth();
+    });
   }
 
-  void _checkAuth() {
+  Future<void> _initPreferences() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
+
+  Future<void> _saveToken(String token) async {
+    await _prefs.setString('auth_token', token);
+    print('Токен сохранен в локальное хранилище: $token');
+  }
+
+  Future<String?> _getToken() async {
+    return _prefs.getString('auth_token');
+  }
+
+  void _checkAuth() async {
     final user = supabase.auth.currentUser;
-    if (user != null) {
+    if (user != null && mounted) {
+      final session = supabase.auth.currentSession;
+      if (session != null) {
+        await _saveToken(session.accessToken);
+        print('Пользователь уже авторизован: ${user.email}');
+        print('Токен из хранилища: ${await _getToken()}');
+      }
       _navigateToHome();
     }
   }
 
   void _navigateToHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    Future.delayed(Duration.zero, () {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SplashScreen()),
+        );
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -54,36 +82,64 @@ class _AuthScreenState extends State<AuthScreen> {
       final password = _passwordController.text.trim();
 
       if (_isSignUp) {
-        await supabase.auth.signUp(
+        print('Начинаем регистрацию для email: $email');
+        
+        final response = await supabase.auth.signUp(
           email: email,
           password: password,
         );
         
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✨ Регистрация успешна! Теперь войдите.'),
-              backgroundColor: primaryColor,
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
-            ),
-          );
+        if (response.user != null) {
+          print('Регистрация успешна!');
+          print('Пользователь: ${response.user!.email}');
+          print('User ID: ${response.user!.id}');
+          
+          final session = supabase.auth.currentSession;
+          if (session != null) {
+            await _saveToken(session.accessToken);
+            print('Access Token: ${session.accessToken}');
+            print('Refresh Token: ${session.refreshToken}');
+          } else {
+            print('Сессия не создана (возможно требуется подтверждение email)');
+          }
+          
           setState(() {
             _isSignUp = false;
             _passwordController.clear();
           });
+        } else {
+          print('Ошибка: Пользователь не создан');
         }
       } else {
-        await supabase.auth.signInWithPassword(
+        print('Начинаем авторизацию для email: $email');
+        
+        final response = await supabase.auth.signInWithPassword(
           email: email,
           password: password,
         );
         
-        if (mounted) {
-          _navigateToHome();
+        if (response.user != null) {
+          print('Авторизация успешна!');
+          print('Пользователь: ${response.user!.email}');
+          print('User ID: ${response.user!.id}');
+          
+          final session = supabase.auth.currentSession;
+          if (session != null) {
+            await _saveToken(session.accessToken);
+            print('Access Token: ${session.accessToken}');
+            print('Refresh Token: ${session.refreshToken}');
+            print('Token expires at: ${session.expiresAt}');
+          }
+          
+          if (mounted) {
+            _navigateToHome();
+          }
+        } else {
+          print('Ошибка: Не удалось получить данные пользователя');
         }
       }
     } on AuthException catch (error) {
+      print('Ошибка аутентификации: ${error.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -95,6 +151,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } catch (error) {
+      print('Неизвестная ошибка: $error');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -113,6 +170,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _toggleMode() {
+    print('Переключение режима: ${_isSignUp ? "Вход" : "Регистрация"}');
     setState(() {
       _isSignUp = !_isSignUp;
       _obscurePassword = true;
