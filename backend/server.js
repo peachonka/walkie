@@ -3,6 +3,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const swaggerJsdoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
 
 dotenv.config();
 
@@ -17,6 +19,34 @@ const itemPositionRoutes = require('./src/routes/itemPosition');  // НОВЫЙ
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// сваггер
+const options = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Walkie API",
+      version: "1.0.0",
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT"
+        }
+      }
+    },
+    security: [
+      {
+        bearerAuth: []
+      }
+    ]
+  },
+  apis: ["./src/routes/*.js", "./src/controllers/*.js"], // путь к файлам с комментариями
+};
+const swaggerSpec = swaggerJsdoc(options);
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(cors());
 app.use(express.json());
 
