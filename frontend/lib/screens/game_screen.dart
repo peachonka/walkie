@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../theme/app_theme.dart';
+// import '../theme/app_theme.dart';
 import '../widgets/game/game_background.dart';
 import '../widgets/game/game_pet.dart';
 import '../widgets/game/draggable_item.dart';

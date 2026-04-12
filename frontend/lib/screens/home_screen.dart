@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_screen.dart';
 import '../../theme/app_theme.dart';
+import '../widgets/profile/stats_modal.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -147,6 +148,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showStatsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) => const StatsModal(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -185,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   iconPath: 'assets/icons/chart-spline.svg',
                   onPressed: () {
                     print('Статистика');
-                    _showComingSoon(context, 'Статистика');
+                    _showStatsModal(context);
                   },
                 ),
                 const SizedBox(height: 12),
