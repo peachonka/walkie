@@ -50,7 +50,7 @@ async function getPet(req, res) {
         )
       `)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       return res.status(500).json({ error: error.message });
