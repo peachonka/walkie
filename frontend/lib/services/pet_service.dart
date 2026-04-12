@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'http_interceptor.dart'; // Импортируйте перехватчик
+import 'http_interceptor.dart';
 
 class PetService {
   static const String baseUrl = 'https://walkie-v9i6.onrender.com/api';
@@ -18,11 +18,9 @@ class PetService {
     };
   }
 
-  // Проверить, есть ли у пользователя питомец
   Future<bool> hasPet() async {
     try {
       final headers = await _getHeaders();
-      // Используем перехватчик вместо прямого http.get
       final response = await HttpInterceptor.get(
         Uri.parse('$baseUrl/pet'),
         headers: headers,
@@ -46,7 +44,6 @@ class PetService {
     }
   }
 
-  // Получить информацию о питомце
   Future<Map<String, dynamic>?> getPet() async {
     try {
       final headers = await _getHeaders();
@@ -65,7 +62,6 @@ class PetService {
     }
   }
 
-  // Получить список доступных типов питомцев
   Future<List<Map<String, dynamic>>> getPetTypes() async {
     try {
       final headers = await _getHeaders();
@@ -85,7 +81,6 @@ class PetService {
     }
   }
 
-  // Создать питомца
   Future<bool> createPet(int petId, String name) async {
     try {
       final headers = await _getHeaders();
@@ -109,6 +104,32 @@ class PetService {
       }
     } catch (e) {
       print('-- Ошибка при создании питомца: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updatePetName(String newName) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await HttpInterceptor.put(
+        Uri.parse('$baseUrl/pet/name'),
+        headers: headers,
+        body: json.encode({
+          'name': newName,
+        }),
+      );
+      
+      print('-- Обновление имени питомца - Status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        print('-- Имя питомца обновлено успешно');
+        return true;
+      } else {
+        print('-- Ошибка обновления имени: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('-- Ошибка при обновлении имени питомца: $e');
       return false;
     }
   }

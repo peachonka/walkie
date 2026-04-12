@@ -6,6 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_screen.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/profile/stats_modal.dart';
+import '../widgets/collection/collection_modal.dart';
+import '../services/items_service.dart';
+import '../services/pet_service.dart';
+import '../widgets/common/custom_button.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,11 +21,23 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _petName = 'Загрузка...';
   
+  final ItemsService _itemsService = ItemsService();
+  final PetService _petService = PetService();
+  
+  Map<String, dynamic>? _selectedItem;
+  Offset? _tempPosition;
+  bool _isPlacingItem = false;
+  bool _isMovingItem = false;
+  Map<String, dynamic>? _movingItem;
+  bool _itemSelectedFromCollection = false;
+  List<Map<String, dynamic>> _placedItems = [];
+  
   @override
   void initState() {
     super.initState();
     _setLandscapeOrientation();
     _loadPetName();
+    _loadPlacedItems();
   }
 
   void _setLandscapeOrientation() {
@@ -29,33 +45,305 @@ class _HomeScreenState extends State<HomeScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    print('HomeScreen: установлена горизонтальная ориентация');
   }
 
   Future<void> _loadPetName() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final petName = prefs.getString('pet_name');
-      if (petName != null && petName.isNotEmpty) {
-        setState(() {
-          _petName = petName;
-        });
-      } else {
-        setState(() {
-          _petName = 'Питомец';
-        });
-      }
+      setState(() {
+        _petName = petName ?? 'Питомец';
+      });
     } catch (e) {
-      print('Ошибка загрузки имени питомца: $e');
       setState(() {
         _petName = 'Питомец';
       });
     }
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  Future<void> _loadPlacedItems() async {
+    final items = await _itemsService.getPlacedItems();
+    setState(() {
+      _placedItems = items;
+    });
+  }
+
+  void _showEditPetNameDialog() {
+    final TextEditingController controller = TextEditingController(text: _petName);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Изменить имя питомца',
+          style: TextStyle(
+            fontFamily: 'Sigmar Cyrillic',
+            fontSize: 20,
+            color: AppTheme.primaryColor,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Введите новое имя для вашего питомца',
+              style: TextStyle(
+                fontFamily: 'Pangolin',
+                fontSize: 14,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: const Color(0xFFFFF1D5),
+                border: Border.all(color: const Color(0xFF827454), width: 1),
+              ),
+              child: TextFormField(
+                controller: controller,
+                style: const TextStyle(fontSize: 16),
+                decoration: const InputDecoration(
+                  hintText: 'Имя питомца',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(
+                fontFamily: 'Pangolin',
+                fontSize: 14,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty && newName != _petName) {
+                await _updatePetName(newName);
+              }
+              if (context.mounted) {
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.secondaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.primaryColor, width: 2),
+              ),
+            ),
+            child: const Text(
+              'Сохранить',
+              style: TextStyle(
+                fontFamily: 'Sigmar Cyrillic',
+                fontSize: 16,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updatePetName(String newName) async {
+    final success = await _petService.updatePetName(newName);
+    
+    if (success && mounted) {
+      setState(() {
+        _petName = newName;
+      });
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pet_name', newName);
+      
+      print('Имя питомца обновлено: $newName');
+    } else {
+      print('Ошибка при обновлении имени питомца');
+    }
+  }
+
+  void _showStatsModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) => const StatsModal(),
+    );
+  }
+
+  void _showCollectionModal() {
+    _itemSelectedFromCollection = false;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) => CollectionModal(
+        onItemSelected: (item) {
+          _itemSelectedFromCollection = true;
+          
+          Map<String, dynamic>? existingItem;
+          for (var placed in _placedItems) {
+            if (placed['item_name'] == _getItemName(item)) {
+              existingItem = placed;
+              break;
+            }
+          }
+          
+          if (existingItem != null) {
+            _startMovingItem(existingItem, fromCollection: true);
+          } else {
+            _startPlacingItem(item);
+          }
+        },
+      ),
+    );
+  }
+
+  void _startPlacingItem(Map<String, dynamic> item) {
+    setState(() {
+      _selectedItem = item;
+      _isPlacingItem = true;
+      _isMovingItem = false;
+      _movingItem = null;
+      _tempPosition = const Offset(300, 300);
+    });
+  }
+
+  void _startMovingItem(Map<String, dynamic> item, {bool fromCollection = false}) {
+    setState(() {
+      _movingItem = item;
+      _isMovingItem = true;
+      _isPlacingItem = false;
+      _selectedItem = null;
+      _tempPosition = Offset(item['x'], item['y']);
+      _itemSelectedFromCollection = fromCollection;
+    });
+  }
+
+  void _removeItemFromScreen() {
+    if (_movingItem == null) return;
+    
+    final itemToRemove = _movingItem!;
+    
+    setState(() {
+      _placedItems.removeWhere((p) => p['item_id'] == itemToRemove['item_id']);
+      _isMovingItem = false;
+      _movingItem = null;
+      _tempPosition = null;
+    });
+  }
+
+  String _getItemName(Map<String, dynamic> item) {
+    return item['name'] ?? item['item_name'] ?? 'Предмет';
+  }
+
+  int? _getItemId(Map<String, dynamic> item) {
+    if (item['item_id'] != null) {
+      return item['item_id'] is int ? item['item_id'] : int.tryParse(item['item_id'].toString());
+    }
+    if (item['id'] != null) {
+      return item['id'] is int ? item['id'] : int.tryParse(item['id'].toString());
+    }
+    return null;
+  }
+
+  void _onScreenTap(TapDownDetails details) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    if (details.localPosition.dy > screenHeight - 100) {
+      return;
+    }
+    
+    if ((_isPlacingItem || _isMovingItem) && _tempPosition != null) {
+      setState(() {
+        _tempPosition = details.localPosition;
+      });
+    }
+  }
+
+  Future<void> _confirmPlacement() async {
+    if (_tempPosition == null) return;
+    
+    int? itemId;
+    String itemName;
+    
+    if (_isMovingItem && _movingItem != null) {
+      itemId = _movingItem!['item_id'];
+      itemName = _movingItem!['item_name'];
+    } else if (_isPlacingItem && _selectedItem != null) {
+      itemId = _getItemId(_selectedItem!);
+      itemName = _getItemName(_selectedItem!);
+    } else {
+      _resetPlacingMode();
+      return;
+    }
+    
+    if (itemId == null) {
+      _resetPlacingMode();
+      return;
+    }
+    
+    final success = await _itemsService.placeItem(
+      itemId,
+      _tempPosition!.dx,
+      _tempPosition!.dy,
+    );
+    
+    if (success && mounted) {
+      if (_isMovingItem && _movingItem != null) {
+        setState(() {
+          final index = _placedItems.indexWhere((p) => p['item_id'] == itemId);
+          if (index != -1) {
+            _placedItems[index] = {
+              ..._placedItems[index],
+              'x': _tempPosition!.dx,
+              'y': _tempPosition!.dy,
+            };
+          }
+        });
+      } else {
+        setState(() {
+          _placedItems.add({
+            'item_id': itemId,
+            'item_name': itemName,
+            'x': _tempPosition!.dx,
+            'y': _tempPosition!.dy,
+          });
+        });
+      }
+      _resetPlacingMode();
+    } else {
+      _resetPlacingMode();
+    }
+  }
+
+  void _cancelPlacing() {
+    _resetPlacingMode();
+    
+    if (_itemSelectedFromCollection) {
+      _showCollectionModal();
+    }
+    _itemSelectedFromCollection = false;
+  }
+
+  void _resetPlacingMode() {
+    setState(() {
+      _isPlacingItem = false;
+      _isMovingItem = false;
+      _selectedItem = null;
+      _movingItem = null;
+      _tempPosition = null;
+    });
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -65,39 +353,20 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => AlertDialog(
         title: const Text(
           'Выход из аккаунта',
-          style: TextStyle(
-            fontFamily: 'Sigmar Cyrillic',
-            fontSize: 20,
-          ),
+          style: TextStyle(fontFamily: 'Sigmar Cyrillic', fontSize: 20),
         ),
         content: const Text(
           'Вы уверены, что хотите выйти?',
-          style: TextStyle(
-            fontFamily: 'Pangolin',
-            fontSize: 16,
-          ),
+          style: TextStyle(fontFamily: 'Pangolin', fontSize: 16),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Отмена',
-              style: TextStyle(
-                fontFamily: 'Pangolin',
-                fontSize: 14,
-              ),
-            ),
+            child: const Text('Отмена', style: TextStyle(fontFamily: 'Pangolin', fontSize: 14)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Выйти',
-              style: TextStyle(
-                fontFamily: 'Pangolin',
-                fontSize: 14,
-                color: Colors.red,
-              ),
-            ),
+            child: const Text('Выйти', style: TextStyle(fontFamily: 'Pangolin', fontSize: 14, color: Colors.red)),
           ),
         ],
       ),
@@ -108,37 +377,27 @@ class _HomeScreenState extends State<HomeScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: CircularProgressIndicator(
-            color: AppTheme.primaryColor,
-          ),
+          child: CircularProgressIndicator(color: AppTheme.primaryColor),
         ),
       );
 
       try {
         await Supabase.instance.client.auth.signOut();
-        print('Выход из Supabase выполнен успешно');
-      } catch (e) {
-        print('Ошибка при выходе из Supabase: $e');
-      }
-
+      } catch (e) {}
+      
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('auth_token');
         await prefs.remove('user_id');
         await prefs.remove('pet_name');
-        print('Токен удалён из локального хранилища');
-      } catch (e) {
-        print('Ошибка при очистке хранилища: $e');
-      }
+      } catch (e) {}
 
       if (context.mounted) {
         Navigator.pop(context);
-        
         await SystemChrome.setPreferredOrientations([
           DeviceOrientation.portraitUp,
           DeviceOrientation.portraitDown,
         ]);
-        
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const AuthScreen()),
@@ -148,102 +407,198 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showStatsModal(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black54,
-      builder: (context) => const StatsModal(),
-    );
+  String _getItemIconFromName(String name) {
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('очк')) return 'assets/images/items/sunglasses.png';
+    if (lowerName.contains('миск')) return 'assets/images/items/bowl.png';
+    if (lowerName.contains('ков')) return 'assets/images/items/carpet.png';
+    return 'assets/images/items/sunglasses.png';
   }
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    });
-    
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/game_background.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          
-          Center(
-            child: Image.asset(
-              'assets/images/pet_0.png',
-              width: 300,
-              height: 300,
-              fit: BoxFit.contain,
-            ),
-          ),
-          
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildMenuButton(
-                  iconPath: 'assets/icons/chart-spline.svg',
-                  onPressed: () {
-                    print('Статистика');
-                    _showStatsModal(context);
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                _buildMenuButton(
-                  iconPath: 'assets/icons/shelving-unit.svg',
-                  onPressed: () {
-                    print('Коллекция');
-                    _showComingSoon(context, 'Коллекция');
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                _buildMenuButton(
-                  iconPath: 'assets/icons/map.svg',
-                  onPressed: () {
-                    print('Карта');
-                    _showComingSoon(context, 'Карта');
-                  },
-                ),
-                const SizedBox(height: 12),
-                
-                _buildLogoutButton(context),
-              ],
-            ),
-          ),
-          
-          Positioned(
-            top: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.secondaryColor.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.primaryColor, width: 1),
-              ),
-              child: Text(
-                _petName,
-                style: const TextStyle(
-                  fontFamily: 'Pangolin',
-                  fontSize: 18,
-                  color: AppTheme.primaryColor,
-                ),
+    return GestureDetector(
+      onTapDown: _onScreenTap,
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/game_background.png',
+                fit: BoxFit.cover,
               ),
             ),
-          ),
-        ],
+            
+            Center(
+              child: Image.asset(
+                'assets/images/pet_0.png',
+                width: 300,
+                height: 300,
+                fit: BoxFit.contain,
+              ),
+            ),
+            
+            ..._placedItems.where((item) => 
+              !(_isMovingItem && _movingItem != null && item['item_id'] == _movingItem!['item_id'])
+            ).map((item) => Positioned(
+              left: item['x'],
+              top: item['y'],
+              child: GestureDetector(
+                onLongPress: () {
+                  _startMovingItem(item);
+                },
+                child: Image.asset(
+                  _getItemIconFromName(item['item_name']),
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                    );
+                  },
+                ),
+              ),
+            )),
+            
+            if (_isMovingItem && _movingItem != null && _tempPosition != null)
+              Positioned(
+                left: _tempPosition!.dx,
+                top: _tempPosition!.dy,
+                child: Opacity(
+                  opacity: 0.7,
+                  child: Image.asset(
+                    _getItemIconFromName(_movingItem!['item_name']),
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            
+            if (_isPlacingItem && _selectedItem != null && _tempPosition != null)
+              Positioned(
+                left: _tempPosition!.dx,
+                top: _tempPosition!.dy,
+                child: Opacity(
+                  opacity: 0.7,
+                  child: Image.asset(
+                    _getItemIconFromName(_getItemName(_selectedItem!)),
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            
+            Positioned(
+              top: 20,
+              left: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildMenuButton(
+                    iconPath: 'assets/icons/chart-spline.svg',
+                    onPressed: _showStatsModal,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMenuButton(
+                    iconPath: 'assets/icons/shelving-unit.svg',
+                    onPressed: _showCollectionModal,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMenuButton(
+                    iconPath: 'assets/icons/map.svg',
+                    onPressed: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  _buildLogoutButton(context),
+                ],
+              ),
+            ),
+            
+            Positioned(
+              top: 20,
+              right: 20,
+              child: GestureDetector(
+                onTap: _showEditPetNameDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondaryColor.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.primaryColor, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _petName,
+                        style: const TextStyle(
+                          fontFamily: 'Pangolin',
+                          fontSize: 18,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: AppTheme.primaryColor.withOpacity(0.6),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            if (_isPlacingItem || _isMovingItem)
+              Positioned(
+                bottom: 20,
+                right: 20,
+                child: Row(
+                  children: [
+                    if (_isMovingItem && _movingItem != null)
+                      CustomButton(
+                        text: 'Убрать',
+                        onPressed: _removeItemFromScreen,
+                        width: 100,
+                      ),
+                    if (_isMovingItem && _movingItem != null) 
+                      const SizedBox(width: 12),
+                    CustomButton(
+                      text: 'Отмена',
+                      onPressed: _cancelPlacing,
+                      width: 100,
+                    ),
+                    const SizedBox(width: 12),
+                    CustomButton(
+                      text: 'OK',
+                      onPressed: _confirmPlacement,
+                      width: 100,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -271,6 +626,9 @@ class _HomeScreenState extends State<HomeScreen> {
               AppTheme.primaryColor,
               BlendMode.srcIn,
             ),
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.image, size: 32, color: AppTheme.primaryColor);
+            },
           ),
         ),
       ),
@@ -289,29 +647,8 @@ class _HomeScreenState extends State<HomeScreen> {
           border: Border.all(color: AppTheme.primaryColor, width: 2),
         ),
         child: const Center(
-          child: Icon(
-            Icons.logout,
-            size: 32,
-            color: AppTheme.primaryColor,
-          ),
+          child: Icon(Icons.logout, size: 32, color: AppTheme.primaryColor),
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$feature в разработке',
-          style: const TextStyle(
-            fontFamily: 'Pangolin',
-            fontSize: 14,
-          ),
-        ),
-        backgroundColor: AppTheme.primaryColor,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
       ),
     );
   }
