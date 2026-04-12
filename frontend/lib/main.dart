@@ -10,10 +10,10 @@ void main() async {
   await dotenv.load(fileName: ".env");
   
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_SECRET_KEY'];
   
   if (supabaseUrl == null || supabaseAnonKey == null) {
-    throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env file');
+    throw Exception('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in .env file');
   }
   
   await Supabase.initialize(
