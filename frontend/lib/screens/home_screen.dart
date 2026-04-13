@@ -9,7 +9,11 @@ import '../widgets/profile/stats_modal.dart';
 import '../widgets/collection/collection_modal.dart';
 import '../services/items_service.dart';
 import '../services/pet_service.dart';
+import '../services/walk_service.dart';
 import '../widgets/common/custom_button.dart';
+import '../widgets/walk/start_walk_dialog.dart';
+import '../screens/walk_screen.dart';
+import '../widgets/walk/walk_result_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   final ItemsService _itemsService = ItemsService();
   final PetService _petService = PetService();
+  final WalkService _walkService = WalkService();
   
   Map<String, dynamic>? _selectedItem;
   Offset? _tempPosition;
@@ -38,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _setLandscapeOrientation();
     _loadPetName();
     _loadPlacedItems();
+    _checkAndRestoreActiveWalk();
   }
 
   void _setLandscapeOrientation() {
@@ -154,6 +160,75 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _checkAndRestoreActiveWalk() async {
+    final activeWalkId = await _walkService.restoreActiveWalkIfNeeded();
+    if (activeWalkId != null && mounted) {
+      print('Восстанавливаем активную прогулку: $activeWalkId');
+      
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text(
+            'Незавершённая прогулка',
+            style: TextStyle(
+              fontFamily: 'Sigmar Cyrillic',
+              fontSize: 20,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          content: const Text(
+            'У вас есть незавершённая прогулка. Хотите продолжить?',
+            style: TextStyle(
+              fontFamily: 'Pangolin',
+              fontSize: 16,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await _walkService.clearSavedActiveWalk();
+                if (mounted) Navigator.pop(context, false);
+              },
+              child: const Text(
+                'Нет',
+                style: TextStyle(
+                  fontFamily: 'Pangolin',
+                  fontSize: 14,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                'Да',
+                style: TextStyle(
+                  fontFamily: 'Pangolin',
+                  fontSize: 14,
+                  color: Colors.green,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldContinue == true && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => WalkScreen(
+              walkId: activeWalkId,
+              onWalkEnd: _showWalkResult,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _updatePetName(String newName) async {
@@ -344,6 +419,129 @@ class _HomeScreenState extends State<HomeScreen> {
       _movingItem = null;
       _tempPosition = null;
     });
+  }
+
+  void _showStartWalkDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (context) => StartWalkDialog(
+        onConfirm: _startWalk,
+        onCancel: () => Navigator.pop(context),
+      ),
+    );
+  }
+
+  Future<void> _startWalk() async {
+    if (!mounted) return;
+    
+    print('=== НАЧАЛО ПРОЦЕССА СТАРТА ПРОГУЛКИ ===');
+    
+    // Закрываем диалог подтверждения
+    if (mounted) {
+      Navigator.pop(context);
+      print('Диалог подтверждения закрыт');
+    }
+    
+    // Показываем индикатор загрузки
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      ),
+    );
+    
+    try {
+      final result = await _walkService.startWalk();
+      print('Результат startWalk: $result');
+      
+      // Закрываем индикатор загрузки
+      if (mounted) {
+        Navigator.pop(context);
+        print('Индикатор загрузки закрыт');
+      }
+      
+      if (result != null && mounted) {
+        final walkId = result['walk_id'];
+        print('=== ПРОГУЛКА УСПЕШНО НАЧАТА ===');
+        print('ID прогулки: $walkId');
+        print('Пытаемся открыть WalkScreen...');
+        
+        // Небольшая задержка для стабильности
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        if (mounted) {
+          print('Контекст валиден, открываем WalkScreen');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => WalkScreen(
+                walkId: walkId,
+                onWalkEnd: _showWalkResult,
+              ),
+            ),
+          ).then((_) {
+            print('WalkScreen закрыт');
+          }).catchError((e) {
+            print('Ошибка при открытии WalkScreen: $e');
+          });
+        } else {
+          print('ОШИБКА: Контекст невалиден после задержки');
+        }
+      } else {
+        print('Ошибка: результат начала прогулки пустой');
+      }
+    } catch (e) {
+      print('Ошибка при начале прогулки: $e');
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _showWalkResult(Map<String, dynamic> result) {
+    print('=== ПОКАЗ РЕЗУЛЬТАТОВ ПРОГУЛКИ ===');
+    
+    // Закрываем WalkScreen
+    if (mounted) {
+      Navigator.pop(context);
+    }
+    
+    // Небольшая задержка перед показом диалога
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black54,
+          builder: (context) => WalkResultDialog(
+            result: result,
+            onCollect: () {
+              print('Нажата кнопка "Собрать награды"');
+              _refreshAfterWalk();
+            },
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _refreshAfterWalk() async {
+    print('=== ОБНОВЛЕНИЕ ПОСЛЕ ПРОГУЛКИ ===');
+    
+    if (!mounted) {
+      print('HomeScreen не смонтирован, пропускаем обновление');
+      return;
+    }
+    
+    try {
+      // Обновляем размещённые предметы
+      await _loadPlacedItems();
+    } catch (e) {
+      print('Ошибка при обновлении: $e');
+    }
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -566,6 +764,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              ),
+            ),
+            
+            // Кнопка "Гулять" в левом нижнем углу
+            Positioned(
+              bottom: 20,
+              left: 20,
+              child: CustomButton(
+                text: 'Гулять',
+                onPressed: _showStartWalkDialog,
+                width: 120,
               ),
             ),
             
