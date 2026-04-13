@@ -5,13 +5,28 @@ class WalkSimulationService {
   
   double _currentLat = 55.751244;
   double _currentLng = 37.618423;
-  double _speed = 0.5; // Уменьшена скорость: 0.5 м/сек (1.8 км/ч - медленная прогулка)
+  
+  // Настройки скорости
+  // speedKmh - желаемая скорость в км/ч в игровом мире
+  // Например: 5 км/ч - медленная прогулка, 10 км/ч - быстрая, 15 км/ч - бег
+  double _speedKmh = 5.0; // 10 км/ч - средняя скорость
+  
+  // Рассчитываем реальную скорость в м/сек с учётом масштабирования
+  double get _speedInMetersPerSecond {
+    // Переводим км/ч в м/с: км/ч * 1000 / 3600 = м/с
+    final realSpeedMs = _speedKmh * 1000 / 3600;
+    // Умножаем на 60, потому что 1 реальная секунда = 1 игровая минута (60 секунд)
+    return realSpeedMs * 60;
+  }
   
   List<Map<String, double>> _waypoints = [];
   DateTime? _lastUpdate;
   double _totalDistance = 0.0;
   
-  void startSimulation() {
+  void startSimulation({double? speedKmh}) {
+    if (speedKmh != null) {
+      _speedKmh = speedKmh;
+    }
     _currentLat = 55.751244;
     _currentLng = 37.618423;
     _totalDistance = 0.0;
@@ -23,13 +38,13 @@ class WalkSimulationService {
     _waypoints.clear();
     final random = Random();
     
-    // Генерируем 2-3 точки (меньше для меньшего расстояния)
-    final waypointsCount = random.nextInt(2) + 2;
+    // Генерируем 5-10 точек для разнообразия маршрута
+    final waypointsCount = random.nextInt(6) + 5;
     
     for (int i = 0; i < waypointsCount; i++) {
-      // Очень маленькое смещение (~50-100 метров)
-      final latOffset = (random.nextDouble() - 0.5) * 0.001;
-      final lngOffset = (random.nextDouble() - 0.5) * 0.001;
+      // Смещение до 3 км (0.03 градуса ≈ 3 км)
+      final latOffset = (random.nextDouble() - 0.5) * 0.03;
+      final lngOffset = (random.nextDouble() - 0.5) * 0.03;
       
       _waypoints.add({
         'lat': 55.751244 + latOffset,
@@ -50,11 +65,8 @@ class WalkSimulationService {
       return {'lat': _currentLat, 'lng': _currentLng};
     }
     
-    // Масштабируем: 1 реальная секунда = 1 минута (60 секунд)
-    final simulatedSeconds = realSeconds * 60.0;
-    
-    // Рассчитываем пройденное расстояние за этот шаг (очень маленькое)
-    final stepDistance = _speed * simulatedSeconds;
+    // Рассчитываем пройденное расстояние
+    final stepDistance = _speedInMetersPerSecond * realSeconds;
     _totalDistance += stepDistance;
     
     if (_waypoints.isNotEmpty) {
