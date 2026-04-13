@@ -147,7 +147,9 @@ class _StatsModalState extends State<StatsModal> {
             'прогулки',
           ),
           _buildStatColumn(
-            _stats['total_steps']?.toString() ?? '0',
+            ((_stats['total_distance_km'] != null 
+              ? (double.tryParse(_stats['total_distance_km'].toString()) ?? 0) * 1000 / 0.75 
+              : 0).round()).toString(),
             'шагов',
           ),
           _buildStatColumn(
