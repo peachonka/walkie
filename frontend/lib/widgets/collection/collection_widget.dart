@@ -31,7 +31,11 @@ class CollectionWidget extends StatelessWidget {
           children: [
             _buildHeader(),
             const SizedBox(height: 20),
-            _buildCollectionGrid(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: _buildCollectionGrid(),
+              ),
+            ),
           ],
         ),
       ),
@@ -64,32 +68,41 @@ class CollectionWidget extends StatelessWidget {
   Widget _buildCollectionGrid() {
     return Column(
       children: [
+        // Первый ряд - 4 предмета
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             CollectionItemWidget(text: 'Шкаф'),
-            const SizedBox(width: 20),
             CollectionItemWidget(imagePath: 'assets/images/Image7.png'),
-            const SizedBox(width: 20),
             CollectionItemWidget(
               imagePath: 'assets/images/Image18.png',
               rotateAngle: 38.77,
             ),
-            const SizedBox(width: 20),
             CollectionItemWidget(imagePath: 'assets/images/Image13.png'),
           ],
         ),
         const SizedBox(height: 20),
+        // Второй ряд - 4 предмета
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             CollectionItemWidget(),
-            const SizedBox(width: 20),
             CollectionItemWidget(),
-            const SizedBox(width: 20),
             CollectionItemWidget(),
-            const SizedBox(width: 20),
             CollectionItemWidget(),
           ],
         ),
+        const SizedBox(height: 20),
+        // Добавь еще ряды если нужно
+        // Row(
+        //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        //   children: [
+        //     CollectionItemWidget(),
+        //     CollectionItemWidget(),
+        //     CollectionItemWidget(),
+        //     CollectionItemWidget(),
+        //   ],
+        // ),
       ],
     );
   }

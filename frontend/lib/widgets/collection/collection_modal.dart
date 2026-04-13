@@ -78,6 +78,9 @@ class _CollectionModalState extends State<CollectionModal> {
       insetPadding: const EdgeInsets.all(20),
       child: Container(
         width: 500,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           color: AppTheme.secondaryColor,
@@ -107,7 +110,11 @@ class _CollectionModalState extends State<CollectionModal> {
               const Divider(color: AppTheme.primaryColor),
               const SizedBox(height: 16),
               
-              _buildContent(),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: _buildContent(),
+                ),
+              ),
             ],
           ),
         ),
@@ -173,11 +180,20 @@ class _CollectionModalState extends State<CollectionModal> {
       );
     }
 
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      alignment: WrapAlignment.center,
-      children: _items.map((item) => _buildItemCard(item)).toList(),
+    // Используем GridView.builder для отображения 4 предметов в ряду
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: _items.length,
+      itemBuilder: (context, index) {
+        return _buildItemCard(_items[index]);
+      },
     );
   }
 
@@ -188,7 +204,6 @@ class _CollectionModalState extends State<CollectionModal> {
     return GestureDetector(
       onTap: () => _onItemTap(item),
       child: Container(
-        width: 100,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -196,16 +211,17 @@ class _CollectionModalState extends State<CollectionModal> {
           border: Border.all(color: AppTheme.primaryColor, width: 1),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
               iconPath,
-              height: 60,
-              width: 60,
+              height: 50,
+              width: 50,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  height: 60,
-                  width: 60,
+                  height: 50,
+                  width: 50,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(8),
