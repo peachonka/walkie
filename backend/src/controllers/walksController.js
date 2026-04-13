@@ -29,7 +29,10 @@ async function startWalk(req, res) {
       .single();
 
     if (activeWalk) {
-      return res.status(409).json({ error: 'Active walk already exists' });
+      return res.status(409).json({ 
+        error: 'Active walk already exists',
+        walkId: activeWalk.id
+      });
     }
 
     const { data, error } = await supabase
