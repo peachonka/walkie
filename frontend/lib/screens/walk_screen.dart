@@ -26,7 +26,7 @@ class _WalkScreenState extends State<WalkScreen> {
   final WalkService _walkService = WalkService();
   final LocationService _locationService = LocationService();
   
-  static const double _timeMultiplier = 20.0;
+  static const double _timeMultiplier = 1.0;
   
   final MapController _mapController = MapController();
   

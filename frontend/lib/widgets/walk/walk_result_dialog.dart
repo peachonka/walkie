@@ -17,10 +17,11 @@ class WalkResultDialog extends StatelessWidget {
     final distance = (result['distance'] ?? 0) / 1000;
     final durationSeconds = result['duration'] ?? 0;
     
-    final itemsCollected = result['items_collected'];
+    // items_collected - это число (количество предметов)
+    final itemsCount = result['items_collected'] ?? 0;
+    // new_achievements - это список достижений
     final newAchievements = result['new_achievements'];
     
-    final hasItems = itemsCollected is List && itemsCollected.isNotEmpty;
     final hasAchievements = newAchievements is List && newAchievements.isNotEmpty;
     
     final totalMinutes = durationSeconds ~/ 60;
@@ -127,43 +128,32 @@ class WalkResultDialog extends StatelessWidget {
                 
                 const SizedBox(height: 12),
                 
-                // Найденные предметы
-                if (hasItems) ...[
-                  const Text(
-                    '📦 Найдено:',
-                    style: TextStyle(
-                      fontFamily: 'Sigmar Cyrillic',
-                      fontSize: 13,
-                      color: AppTheme.primaryColor,
+                // Количество найденных предметов
+                if (itemsCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '📦 ',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        Text(
+                          'Найдено предметов: $itemsCount',
+                          style: const TextStyle(
+                            fontFamily: 'Sigmar Cyrillic',
+                            fontSize: 13,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    alignment: WrapAlignment.center,
-                    children: (itemsCollected as List).map<Widget>((item) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        color: Colors.green.withOpacity(0.2),
-                        border: Border.all(color: Colors.green, width: 1),
-                      ),
-                      child: Text(
-                        item['name']?.toString() ?? 'Предмет',
-                        style: const TextStyle(
-                          fontFamily: 'Pangolin',
-                          fontSize: 10,
-                          color: Colors.green,
-                        ),
-                      ),
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 12),
-                ],
                 
-                // Новые достижения
+                // Новые достижения - выводим name и description
                 if (hasAchievements) ...[
+                  const SizedBox(height: 8),
                   const Text(
                     '🏆 Новые достижения!',
                     style: TextStyle(
@@ -172,32 +162,49 @@ class WalkResultDialog extends StatelessWidget {
                       color: Colors.orange,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   ...(newAchievements as List).map((ach) => Container(
-                    margin: const EdgeInsets.symmetric(vertical: 2),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.orange.withOpacity(0.15),
                       border: Border.all(color: Colors.orange, width: 1),
                     ),
-                    child: Text(
-                      ach.toString(),
-                      style: const TextStyle(
-                        fontFamily: 'Pangolin',
-                        fontSize: 10,
-                        color: Colors.orange,
-                      ),
-                      textAlign: TextAlign.center,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ach['name']?.toString() ?? 'Достижение',
+                          style: const TextStyle(
+                            fontFamily: 'Sigmar Cyrillic',
+                            fontSize: 12,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (ach['description'] != null && ach['description'].toString().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              ach['description'].toString(),
+                              style: const TextStyle(
+                                fontFamily: 'Pangolin',
+                                fontSize: 10,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  )),
-                  const SizedBox(height: 12),
+                  )).toList(),
+                  const SizedBox(height: 8),
                 ],
                 
                 // Если ничего не найдено
-                if (!hasItems && !hasAchievements)
+                if (itemsCount == 0 && !hasAchievements)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6),
+                    padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text(
                       '😊 В этот раз ничего не найдено\nПродолжай гулять!',
                       textAlign: TextAlign.center,
@@ -211,14 +218,14 @@ class WalkResultDialog extends StatelessWidget {
                 
                 const SizedBox(height: 12),
                 
-                // Кнопка - ОБНОВЛЕНО: закрывает диалог и вызывает колбэк
+                // Кнопка
                 SizedBox(
                   width: 160,
                   height: 38,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.pop(context); // Закрываем диалог
-                      onCollect(); // Вызываем колбэк
+                      Navigator.pop(context);
+                      onCollect();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
