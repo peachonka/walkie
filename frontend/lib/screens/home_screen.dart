@@ -306,17 +306,48 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _removeItemFromScreen() {
+  void _removeItemFromScreen() async {
     if (_movingItem == null) return;
     
     final itemToRemove = _movingItem!;
+    final itemName = itemToRemove['item_name'];
+    final positionId = itemToRemove['id']; // ID позиции из таблицы item_position
     
-    setState(() {
-      _placedItems.removeWhere((p) => p['item_id'] == itemToRemove['item_id']);
-      _isMovingItem = false;
-      _movingItem = null;
-      _tempPosition = null;
-    });
+    print('Убираем предмет с экрана: $itemName, positionId: $positionId');
+    
+    // Показываем индикатор загрузки
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryColor),
+      ),
+    );
+    
+    try {
+      // Отправляем запрос на удаление с сервера
+      final success = await _itemsService.removePlacedItem(positionId);
+      
+      if (mounted) {
+        Navigator.pop(context); // Закрываем индикатор
+      }
+      
+      if (success && mounted) {
+        // Удаляем из локального списка
+        setState(() {
+          _placedItems.removeWhere((p) => p['id'] == positionId);
+          _isMovingItem = false;
+          _movingItem = null;
+          _tempPosition = null;
+        });
+        
+        print('Предмет $itemName успешно убран с экрана и из базы данных');
+      } else {
+        print('Ошибка при удалении предмета с сервера');
+      }
+    } catch (e) {
+      print('Ошибка при удалении предмета: $e');
+    }
   }
 
   String _getItemName(Map<String, dynamic> item) {

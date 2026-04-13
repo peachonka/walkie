@@ -87,4 +87,27 @@ class ItemsService {
       return [];
     }
   }
+
+  Future<bool> removePlacedItem(int positionId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await HttpInterceptor.delete(
+        Uri.parse('$baseUrl/item-positions/$positionId'),
+        headers: headers,
+      );
+      
+      print('Удаление размещённого предмета - Status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        print('Предмет успешно убран с экрана');
+        return true;
+      } else {
+        print('Ошибка удаления: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Ошибка при удалении предмета: $e');
+      return false;
+    }
+  }
 }
