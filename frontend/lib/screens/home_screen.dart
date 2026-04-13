@@ -753,11 +753,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: _showCollectionModal,
                   ),
                   const SizedBox(height: 12),
-                  _buildMenuButton(
-                    iconPath: 'assets/icons/map.svg',
-                    onPressed: () {},
-                  ),
-                  const SizedBox(height: 12),
+                  // _buildMenuButton(
+                  //   iconPath: 'assets/icons/map.svg',
+                  //   onPressed: () {},
+                  // ),
+                  // const SizedBox(height: 12),
                   _buildLogoutButton(context),
                 ],
               ),
