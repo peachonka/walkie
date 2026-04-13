@@ -21,6 +21,11 @@ dependencies:
   flutter_svg: ^2.2.4
   lucide_icons_svg: ^0.0.4
 
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.0
+  geolocator: ^12.0.0  # Для работы с геолокацией
+  permission_handler: ^11.3.0  # Для запроса разрешений
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

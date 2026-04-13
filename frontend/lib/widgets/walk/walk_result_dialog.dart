@@ -16,107 +16,224 @@ class WalkResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final distance = (result['distance'] ?? 0) / 1000;
     final durationSeconds = result['duration'] ?? 0;
-    final itemsCount = result['items_collected'] ?? 0;
     
-    // Преобразуем секунды в минуты (1 секунда = 1 минута игрового времени)
-    final totalMinutes = durationSeconds;
+    final itemsCollected = result['items_collected'];
+    final newAchievements = result['new_achievements'];
     
+    final hasItems = itemsCollected is List && itemsCollected.isNotEmpty;
+    final hasAchievements = newAchievements is List && newAchievements.isNotEmpty;
+    
+    final totalMinutes = durationSeconds ~/ 60;
     final hours = totalMinutes ~/ 60;
     final minutes = totalMinutes % 60;
     
     final durationStr = hours > 0 
         ? '${hours}ч ${minutes}м'
         : '${minutes}м';
-    
-    // Если хотите показывать и секунды (но по логике 1 сек = 1 мин, секунд быть не должно)
-    // final durationStr = hours > 0 
-    //     ? '${hours}ч ${minutes}м'
-    //     : minutes > 0
-    //         ? '${minutes}м'
-    //         : '${durationSeconds}с';
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: SingleChildScrollView(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Container(
+        width: 320,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: AppTheme.secondaryColor,
+          border: Border.all(color: AppTheme.primaryColor, width: 2),
+        ),
+        padding: const EdgeInsets.all(8),
         child: Container(
-          width: 380,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: AppTheme.secondaryColor,
+            borderRadius: BorderRadius.circular(20),
+            color: AppTheme.backgroundColor,
             border: Border.all(color: AppTheme.primaryColor, width: 2),
           ),
-          padding: const EdgeInsets.all(8),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: AppTheme.backgroundColor,
-              border: Border.all(color: AppTheme.primaryColor, width: 2),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Прогулка завершена!',
+                  'ПРОГУЛКА\nЗАВЕРШЕНА!',
                   style: TextStyle(
                     fontFamily: 'Sigmar Cyrillic',
-                    fontSize: 22,
+                    fontSize: 20,
                     color: AppTheme.primaryColor,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 
-                _buildResultRow('Пройдено', '${distance.toStringAsFixed(2)} км'),
-                const SizedBox(height: 10),
-                _buildResultRow('Время', durationStr),
-                const SizedBox(height: 10),
-                _buildResultRow('Найдено предметов', itemsCount.toString()),
-                
-                const SizedBox(height: 20),
-                
-                if (result['new_achievements'] != null && result['new_achievements'].isNotEmpty)
-                  Column(
+                // Статистика
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: AppTheme.secondaryColor.withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      const Divider(color: AppTheme.primaryColor),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Новые достижения!',
-                        style: TextStyle(
-                          fontFamily: 'Sigmar Cyrillic',
-                          fontSize: 14,
-                          color: Colors.orange,
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              '${distance.toStringAsFixed(2)} км',
+                              style: const TextStyle(
+                                fontFamily: 'Sigmar Cyrillic',
+                                fontSize: 14,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Пройдено',
+                              style: TextStyle(
+                                fontFamily: 'Pangolin',
+                                fontSize: 11,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      ...result['new_achievements'].map((ach) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          '🏆 $ach',
-                          style: const TextStyle(
-                            fontFamily: 'Pangolin',
-                            fontSize: 12,
-                            color: AppTheme.primaryColor,
-                          ),
-                          textAlign: TextAlign.center,
+                      Container(width: 1, height: 30, color: AppTheme.primaryColor),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              durationStr,
+                              style: const TextStyle(
+                                fontFamily: 'Sigmar Cyrillic',
+                                fontSize: 14,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Время',
+                              style: TextStyle(
+                                fontFamily: 'Pangolin',
+                                fontSize: 11,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
-                      )),
-                      const SizedBox(height: 16),
+                      ),
                     ],
+                  ),
                 ),
                 
-                Center(
-                  child: CustomButton(
-                    text: 'Собрать награды',
+                const SizedBox(height: 12),
+                
+                // Найденные предметы
+                if (hasItems) ...[
+                  const Text(
+                    '📦 Найдено:',
+                    style: TextStyle(
+                      fontFamily: 'Sigmar Cyrillic',
+                      fontSize: 13,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    alignment: WrapAlignment.center,
+                    children: (itemsCollected as List).map<Widget>((item) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.green.withOpacity(0.2),
+                        border: Border.all(color: Colors.green, width: 1),
+                      ),
+                      child: Text(
+                        item['name']?.toString() ?? 'Предмет',
+                        style: const TextStyle(
+                          fontFamily: 'Pangolin',
+                          fontSize: 10,
+                          color: Colors.green,
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                
+                // Новые достижения
+                if (hasAchievements) ...[
+                  const Text(
+                    '🏆 Новые достижения!',
+                    style: TextStyle(
+                      fontFamily: 'Sigmar Cyrillic',
+                      fontSize: 13,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...(newAchievements as List).map((ach) => Container(
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.orange.withOpacity(0.2),
+                      border: Border.all(color: Colors.orange, width: 1),
+                    ),
+                    child: Text(
+                      ach.toString(),
+                      style: const TextStyle(
+                        fontFamily: 'Pangolin',
+                        fontSize: 10,
+                        color: Colors.orange,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  )),
+                  const SizedBox(height: 12),
+                ],
+                
+                // Если ничего не найдено
+                if (!hasItems && !hasAchievements)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      '😊 В этот раз ничего не найдено\nПродолжай гулять!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Pangolin',
+                        fontSize: 12,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                
+                const SizedBox(height: 12),
+                
+                // Кнопка - ОБНОВЛЕНО: закрывает диалог и вызывает колбэк
+                SizedBox(
+                  width: 160,
+                  height: 38,
+                  child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).pop();
-                      Future.delayed(const Duration(milliseconds: 100), () {
-                        if (context.mounted) {
-                          onCollect();
-                        }
-                      });
+                      Navigator.pop(context); // Закрываем диалог
+                      onCollect(); // Вызываем колбэк
                     },
-                    width: 200,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Text(
+                      'Собрать награды',
+                      style: TextStyle(
+                        fontFamily: 'Sigmar Cyrillic',
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -124,30 +241,6 @@ class WalkResultDialog extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildResultRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Pangolin',
-            fontSize: 14,
-            color: AppTheme.primaryColor,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontFamily: 'Sigmar Cyrillic',
-            fontSize: 16,
-            color: AppTheme.primaryColor,
-          ),
-        ),
-      ],
     );
   }
 }
