@@ -66,14 +66,21 @@ async function updateUserStats(userId) {
   const totalDistance = walks.reduce((sum, w) => sum + (w.distance || 0), 0);
   const totalDuration = walks.reduce((sum, w) => sum + (w.duration || 0), 0);
 
-  await supabase
-    .from('user_stats')
-    .upsert({
+const { error } = await supabase
+  .from('user_stats')
+  .upsert(
+    {
       user_id: userId,
       total_distance: totalDistance,
       total_duration: totalDuration,
       total_walks: walks.length
-    });
+    },
+    { onConflict: 'user_id' }
+  );
+
+  if (error) {
+    console.error('Update stats error:', error);
+  }
 }
 
 // проверка достижений
