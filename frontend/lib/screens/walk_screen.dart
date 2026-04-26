@@ -26,15 +26,12 @@ class _WalkScreenState extends State<WalkScreen> {
   final WalkService _walkService = WalkService();
   final LocationService _locationService = LocationService();
   
-  static const double _timeMultiplier = 1.0;
-  
   final MapController _mapController = MapController();
   
   LatLng _currentPosition = const LatLng(55.751244, 37.618423);
   
   double _totalDistance = 0.0;
-  int _realSeconds = 0;
-  int _gameSeconds = 0;
+  int _durationSeconds = 0; // Реальное время в секундах
   bool _isWalking = true;
   bool _isEnding = false;
   bool _hasLocation = false;
@@ -42,11 +39,13 @@ class _WalkScreenState extends State<WalkScreen> {
   String _locationStatus = "Запрос разрешения...";
   
   late Timer _timer;
+  DateTime? _walkStartTime;
   
   @override
   void initState() {
     super.initState();
     print('WalkScreen инициализирован с walkId: ${widget.walkId}');
+    _walkStartTime = DateTime.now();
     _initLocationTracking();
   }
   
@@ -138,12 +137,17 @@ class _WalkScreenState extends State<WalkScreen> {
   }
 
   void _startTimer() {
+    // Обновляем время каждую секунду
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isWalking || !mounted) return;
       
       setState(() {
-        _realSeconds++;
-        _gameSeconds += _timeMultiplier.toInt();
+        if (_walkStartTime != null) {
+          // Рассчитываем реальное время с момента начала прогулки
+          _durationSeconds = DateTime.now().difference(_walkStartTime!).inSeconds;
+        } else {
+          _durationSeconds++;
+        }
       });
     });
   }
@@ -161,11 +165,11 @@ class _WalkScreenState extends State<WalkScreen> {
     _timer.cancel();
     
     final distanceInMeters = _totalDistance.round();
-    final durationInSeconds = _gameSeconds;
+    final durationInSeconds = _durationSeconds;
     
     print('=== ЗАВЕРШЕНИЕ ПРОГУЛКИ ===');
     print('Расстояние: ${distanceInMeters}м');
-    print('Время: ${durationInSeconds}с');
+    print('Время: ${durationInSeconds}с (${durationInSeconds ~/ 60} мин)');
     
     // Показываем диалог загрузки
     showDialog(
@@ -208,25 +212,32 @@ class _WalkScreenState extends State<WalkScreen> {
           widget.onWalkEnd(result);
         }
       } else {
-        // Ошибка - просто закрываем экран
-        Navigator.pop(context);
+        // Ошибка - показываем сообщение и закрываем экран
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка при завершении прогулки')),
+        );
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pop(context);
+        });
       }
     } catch (e) {
       print('Ошибка: $e');
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка при завершении прогулки')),
+          SnackBar(content: Text('Ошибка: $e')),
         );
-        Navigator.pop(context);
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pop(context);
+        });
       }
     }
   }
 
-  String _formatGameTime() {
-    final hours = _gameSeconds ~/ 3600;
-    final minutes = (_gameSeconds % 3600) ~/ 60;
-    final seconds = _gameSeconds % 60;
+  String _formatDuration() {
+    final hours = _durationSeconds ~/ 3600;
+    final minutes = (_durationSeconds % 3600) ~/ 60;
+    final seconds = _durationSeconds % 60;
     
     if (hours > 0) {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
@@ -291,6 +302,7 @@ class _WalkScreenState extends State<WalkScreen> {
             ],
           ),
           
+          // Верхняя панель со статистикой
           Positioned(
             top: 0,
             left: 0,
@@ -324,27 +336,16 @@ class _WalkScreenState extends State<WalkScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatColumn(_formatGameTime(), 'Время'),
+                      _buildStatColumn(_formatDuration(), 'Время'),
                       _buildStatColumn(_formatDistance(_totalDistance), 'Дистанция'),
                     ],
                   ),
-                  if (_timeMultiplier > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'x${_timeMultiplier.toStringAsFixed(0)} ускорение',
-                        style: const TextStyle(
-                          fontFamily: 'Pangolin',
-                          fontSize: 12,
-                          color: Colors.orange,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
           ),
           
+          // Кнопка центрирования на текущей позиции
           if (_hasLocation)
             Positioned(
               bottom: 100,
@@ -358,6 +359,7 @@ class _WalkScreenState extends State<WalkScreen> {
               ),
             ),
           
+          // Кнопка завершения прогулки
           Positioned(
             bottom: 30,
             left: 20,
@@ -392,6 +394,7 @@ class _WalkScreenState extends State<WalkScreen> {
             ),
           ),
           
+          // Индикатор получения GPS
           if (!_hasLocation)
             Positioned(
               top: 120,

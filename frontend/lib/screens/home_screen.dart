@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_screen.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/profile/stats_modal.dart';
+import '../widgets/profile/achievements_modal.dart';
 import '../widgets/collection/collection_modal.dart';
 import '../services/items_service.dart';
 import '../services/pet_service.dart';
@@ -257,6 +258,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showAchievementsModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (context) => const AchievementsModal(),
+    );
+  }
+
   void _showCollectionModal() {
     _itemSelectedFromCollection = false;
     showDialog(
@@ -311,11 +321,10 @@ class _HomeScreenState extends State<HomeScreen> {
     
     final itemToRemove = _movingItem!;
     final itemName = itemToRemove['item_name'];
-    final positionId = itemToRemove['id']; // ID позиции из таблицы item_position
+    final positionId = itemToRemove['id'];
     
     print('Убираем предмет с экрана: $itemName, positionId: $positionId');
     
-    // Показываем индикатор загрузки
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -325,15 +334,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     
     try {
-      // Отправляем запрос на удаление с сервера
       final success = await _itemsService.removePlacedItem(positionId);
       
       if (mounted) {
-        Navigator.pop(context); // Закрываем индикатор
+        Navigator.pop(context);
       }
       
       if (success && mounted) {
-        // Удаляем из локального списка
         setState(() {
           _placedItems.removeWhere((p) => p['id'] == positionId);
           _isMovingItem = false;
@@ -469,13 +476,11 @@ class _HomeScreenState extends State<HomeScreen> {
     
     print('=== НАЧАЛО ПРОЦЕССА СТАРТА ПРОГУЛКИ ===');
     
-    // Закрываем диалог подтверждения
     if (mounted) {
       Navigator.pop(context);
       print('Диалог подтверждения закрыт');
     }
     
-    // Показываем индикатор загрузки
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -488,7 +493,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final result = await _walkService.startWalk();
       print('Результат startWalk: $result');
       
-      // Закрываем индикатор загрузки
       if (mounted) {
         Navigator.pop(context);
         print('Индикатор загрузки закрыт');
@@ -498,13 +502,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final walkId = result['walk_id'];
         print('=== ПРОГУЛКА УСПЕШНО НАЧАТА ===');
         print('ID прогулки: $walkId');
-        print('Пытаемся открыть WalkScreen...');
         
-        // Небольшая задержка для стабильности
         await Future.delayed(const Duration(milliseconds: 200));
         
         if (mounted) {
-          print('Контекст валиден, открываем WalkScreen');
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -518,8 +519,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }).catchError((e) {
             print('Ошибка при открытии WalkScreen: $e');
           });
-        } else {
-          print('ОШИБКА: Контекст невалиден после задержки');
         }
       } else {
         print('Ошибка: результат начала прогулки пустой');
@@ -535,12 +534,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showWalkResult(Map<String, dynamic> result) {
     print('=== ПОКАЗ РЕЗУЛЬТАТОВ ПРОГУЛКИ ===');
     
-    // Закрываем WalkScreen
     if (mounted) {
       Navigator.pop(context);
     }
     
-    // Небольшая задержка перед показом диалога
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         showDialog(
@@ -568,7 +565,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     
     try {
-      // Обновляем размещённые предметы
       await _loadPlacedItems();
     } catch (e) {
       print('Ошибка при обновлении: $e');
@@ -737,6 +733,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             
+            // Левое меню
             Positioned(
               top: 20,
               left: 20,
@@ -753,16 +750,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: _showCollectionModal,
                   ),
                   const SizedBox(height: 12),
-                  // _buildMenuButton(
-                  //   iconPath: 'assets/icons/map.svg',
-                  //   onPressed: () {},
-                  // ),
-                  // const SizedBox(height: 12),
+                  _buildMenuIconButton(
+                    icon: Icons.emoji_events,
+                    onPressed: _showAchievementsModal,
+                  ),
+                  const SizedBox(height: 12),
                   _buildLogoutButton(context),
                 ],
               ),
             ),
             
+            // Имя питомца
             Positioned(
               top: 20,
               right: 20,
@@ -798,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             
-            // Кнопка "Гулять" в левом нижнем углу
+            // Кнопка "Гулять"
             Positioned(
               bottom: 20,
               left: 20,
@@ -809,6 +807,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             
+            // Панель управления предметами
             if (_isPlacingItem || _isMovingItem)
               Positioned(
                 bottom: 20,
@@ -869,6 +868,31 @@ class _HomeScreenState extends State<HomeScreen> {
             errorBuilder: (context, error, stackTrace) {
               return const Icon(Icons.image, size: 32, color: AppTheme.primaryColor);
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: AppTheme.secondaryColor,
+          border: Border.all(color: AppTheme.primaryColor, width: 2),
+        ),
+        child: Center(
+          child: Icon(
+            icon,
+            size: 32,
+            color: AppTheme.primaryColor,
           ),
         ),
       ),

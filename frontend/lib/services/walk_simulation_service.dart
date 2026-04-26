@@ -6,22 +6,19 @@ class WalkSimulationService {
   double _currentLat = 55.751244;
   double _currentLng = 37.618423;
   
-  // Настройки скорости
-  // speedKmh - желаемая скорость в км/ч в игровом мире
-  // Например: 5 км/ч - медленная прогулка, 10 км/ч - быстрая, 15 км/ч - бег
-  double _speedKmh = 5.0; // 10 км/ч - средняя скорость
+  // Настройки скорости (реальная скорость в км/ч)
+  double _speedKmh = 5.0; // 5 км/ч - реальная скорость прогулки
   
-  // Рассчитываем реальную скорость в м/сек с учётом масштабирования
+  // Реальная скорость в м/сек (БЕЗ УМНОЖЕНИЯ НА 60)
   double get _speedInMetersPerSecond {
-    // Переводим км/ч в м/с: км/ч * 1000 / 3600 = м/с
-    final realSpeedMs = _speedKmh * 1000 / 3600;
-    // Умножаем на 60, потому что 1 реальная секунда = 1 игровая минута (60 секунд)
-    return realSpeedMs * 60;
+    // км/ч → м/с: делим на 3.6
+    return _speedKmh / 3.6;
   }
   
   List<Map<String, double>> _waypoints = [];
   DateTime? _lastUpdate;
   double _totalDistance = 0.0;
+  int _totalDuration = 0; // Добавляем счетчик времени в секундах
   
   void startSimulation({double? speedKmh}) {
     if (speedKmh != null) {
@@ -30,6 +27,7 @@ class WalkSimulationService {
     _currentLat = 55.751244;
     _currentLng = 37.618423;
     _totalDistance = 0.0;
+    _totalDuration = 0; // Сбрасываем время
     _lastUpdate = DateTime.now();
     _generateWaypoints();
   }
@@ -38,13 +36,13 @@ class WalkSimulationService {
     _waypoints.clear();
     final random = Random();
     
-    // Генерируем 5-10 точек для разнообразия маршрута
-    final waypointsCount = random.nextInt(6) + 5;
+    // Генерируем 10-20 точек для более плавного маршрута
+    final waypointsCount = random.nextInt(11) + 10;
     
     for (int i = 0; i < waypointsCount; i++) {
-      // Смещение до 3 км (0.03 градуса ≈ 3 км)
-      final latOffset = (random.nextDouble() - 0.5) * 0.03;
-      final lngOffset = (random.nextDouble() - 0.5) * 0.03;
+      // Смещение до 5 км (0.05 градуса ≈ 5 км)
+      final latOffset = (random.nextDouble() - 0.5) * 0.05;
+      final lngOffset = (random.nextDouble() - 0.5) * 0.05;
       
       _waypoints.add({
         'lat': 55.751244 + latOffset,
@@ -60,12 +58,16 @@ class WalkSimulationService {
       return {'lat': _currentLat, 'lng': _currentLng};
     }
     
+    // Реальные прошедшие секунды
     final realSeconds = now.difference(_lastUpdate!).inSeconds;
     if (realSeconds == 0) {
       return {'lat': _currentLat, 'lng': _currentLng};
     }
     
-    // Рассчитываем пройденное расстояние
+    // Увеличиваем общую длительность
+    _totalDuration += realSeconds;
+    
+    // Рассчитываем пройденное расстояние за реальные секунды
     final stepDistance = _speedInMetersPerSecond * realSeconds;
     _totalDistance += stepDistance;
     
@@ -101,6 +103,23 @@ class WalkSimulationService {
     return {'lat': _currentLat, 'lng': _currentLng};
   }
   
+  double getCurrentDistance() {
+    return _totalDistance;
+  }
+  
+  int getCurrentDuration() {
+    return _totalDuration; // Возвращаем реальное время в секундах
+  }
+  
+  void reset() {
+    _currentLat = 55.751244;
+    _currentLng = 37.618423;
+    _totalDistance = 0.0;
+    _totalDuration = 0;
+    _waypoints.clear();
+    _lastUpdate = null;
+  }
+  
   double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
     const R = 6371000;
     final phi1 = lat1 * pi / 180;
@@ -114,17 +133,5 @@ class WalkSimulationService {
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     
     return R * c;
-  }
-  
-  double getCurrentDistance() {
-    return _totalDistance;
-  }
-  
-  void reset() {
-    _currentLat = 55.751244;
-    _currentLng = 37.618423;
-    _totalDistance = 0.0;
-    _waypoints.clear();
-    _lastUpdate = null;
   }
 }
