@@ -183,118 +183,130 @@ class _AchievementsModalState extends State<AchievementsModal> {
         
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: isEarned 
-                ? AppTheme.primaryColor.withOpacity(0.1)
-                : Colors.white,
-              border: Border.all(
+          child: Opacity(
+            opacity: isEarned ? 1.0 : 0.7,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
                 color: isEarned 
-                  ? AppTheme.primaryColor 
-                  : AppTheme.primaryColor.withOpacity(0.3),
-                width: isEarned ? 2 : 1,
-              ),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: isEarned 
-                      ? AppTheme.primaryColor 
-                      : AppTheme.primaryColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _getAchievementIcon(achievement['icon']),
-                    size: 36,
-                    color: isEarned ? Colors.white : AppTheme.primaryColor,
-                  ),
+                  ? AppTheme.primaryColor.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
+                border: Border.all(
+                  color: isEarned 
+                    ? AppTheme.primaryColor 
+                    : Colors.grey.withOpacity(0.5),
+                  width: isEarned ? 2 : 1,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                fontFamily: 'Sigmar Cyrillic',
-                                fontSize: 16,
-                                color: AppTheme.primaryColor,
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Иконка достижения
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: isEarned 
+                        ? AppTheme.primaryColor 
+                        : Colors.grey.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      _getAchievementIcon(achievement['icon']),
+                      size: 36,
+                      color: isEarned ? Colors.white : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Информация о достижении
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontFamily: 'Sigmar Cyrillic',
+                                  fontSize: 16,
+                                  color: isEarned 
+                                    ? AppTheme.primaryColor 
+                                    : Colors.grey[600],
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          if (isEarned)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Получено',
-                                    style: TextStyle(
-                                      fontFamily: 'Pangolin',
-                                      fontSize: 10,
+                            if (isEarned)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 14,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Получено',
+                                      style: TextStyle(
+                                        fontFamily: 'Pangolin',
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: const TextStyle(
-                          fontFamily: 'Pangolin',
-                          fontSize: 12,
-                          color: AppTheme.primaryColor,
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (!isEarned)
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: TextStyle(
+                            fontFamily: 'Pangolin',
+                            fontSize: 12,
+                            color: isEarned 
+                              ? AppTheme.primaryColor 
+                              : Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Прогресс-бар
                         Column(
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  '$currentValue / $target',
-                                  style: const TextStyle(
+                                  isEarned ? '$target / $target' : '$currentValue / $target',
+                                  style: TextStyle(
                                     fontFamily: 'Pangolin',
                                     fontSize: 10,
-                                    color: AppTheme.primaryColor,
+                                    color: isEarned 
+                                      ? AppTheme.primaryColor 
+                                      : Colors.grey[500],
                                   ),
                                 ),
                                 Text(
-                                  '$progress%',
-                                  style: const TextStyle(
+                                  isEarned ? '100%' : '$progress%',
+                                  style: TextStyle(
                                     fontFamily: 'Pangolin',
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor,
+                                    color: isEarned 
+                                      ? AppTheme.primaryColor 
+                                      : Colors.grey[500],
                                   ),
                                 ),
                               ],
@@ -304,17 +316,22 @@ class _AchievementsModalState extends State<AchievementsModal> {
                               borderRadius: BorderRadius.circular(8),
                               child: LinearProgressIndicator(
                                 value: progress / 100,
-                                backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-                                color: AppTheme.primaryColor,
+                                backgroundColor: isEarned 
+                                  ? AppTheme.primaryColor.withOpacity(0.2)
+                                  : Colors.grey.withOpacity(0.2),
+                                color: isEarned 
+                                  ? AppTheme.primaryColor 
+                                  : Colors.grey,
                                 minHeight: 8,
                               ),
                             ),
                           ],
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
