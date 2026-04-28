@@ -129,42 +129,49 @@ class WalkService {
     }
   }
 
-  // Завершить прогулку (с очисткой хранилища)
-  Future<Map<String, dynamic>?> endWalk(int walkId, double distance, int duration) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await HttpInterceptor.post(
-        Uri.parse('$baseUrl/walks/$walkId/end'),
-        headers: headers,
-        body: json.encode({
-          'distance': distance,
-          'duration': duration,
-        }),
-      );
+ // Завершить прогулку (с очисткой хранилища)
+Future<Map<String, dynamic>?> endWalk(int walkId, double distance, int duration) async {
+  try {
+    final headers = await _getHeaders();
+    
+    // Рассчитываем количество шагов (средняя длина шага - 0.75 метра)
+    const double avgStepLength = 0.75; // метра
+    int steps = (distance / avgStepLength).round(); // округляем до целого числа
+    
+    final response = await HttpInterceptor.post(
+      Uri.parse('$baseUrl/walks/$walkId/end'),
+      headers: headers,
+      body: json.encode({
+        'distance': distance,
+        'duration': duration,
+        'steps': steps,
+      }),
+    );
+    
+    print('Завершение прогулки - Status: ${response.statusCode}');
+    
+    if (response.statusCode == 200) {
+      // Очищаем сохранённую активную прогулку
+      await clearSavedActiveWalk();
       
-      print('Завершение прогулки - Status: ${response.statusCode}');
+      final data = json.decode(response.body);
+      print('=== ПРОГУЛКА ЗАВЕРШЕНА ===');
+      print('ID прогулки: $walkId');
+      print('Расстояние: ${distance}m');
+      print('Длительность: ${duration}s');
+      print('Шаги: $steps (рассчитано из расстояния ${distance}m)');
+      print('==========================');
       
-      if (response.statusCode == 200) {
-        // Очищаем сохранённую активную прогулку
-        await clearSavedActiveWalk();
-        
-        final data = json.decode(response.body);
-        print('=== ПРОГУЛКА ЗАВЕРШЕНА ===');
-        print('ID прогулки: $walkId');
-        print('Расстояние: ${distance}m');
-        print('Длительность: ${duration}s');
-        print('==========================');
-        
-        return data;
-      } else {
-        print('Ошибка завершения прогулки: ${response.body}');
-        return null;
-      }
-    } catch (e) {
-      print('Ошибка при завершении прогулки: $e');
+      return data;
+    } else {
+      print('Ошибка завершения прогулки: ${response.body}');
       return null;
     }
+  } catch (e) {
+    print('Ошибка при завершении прогулки: $e');
+    return null;
   }
+}
 
   // Восстановить активную прогулку при запуске приложения
   Future<int?> restoreActiveWalkIfNeeded() async {

@@ -16,12 +16,23 @@ class WalkResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final distance = (result['distance'] ?? 0) / 1000;
     final durationSeconds = result['duration'] ?? 0;
+    final steps = result['steps'] ?? 0; // Добавляем шаги
     
-    // items_collected - это число (количество предметов)
-    final itemsCount = result['items_collected'] ?? 0;
+    // items_collected - это список предметов
+    final itemsList = result['items_collected'];
+    // Получаем общее количество предметов (суммируем quantity)
+    int itemsCount = 0;
+    if (itemsList is List) {
+        for (var item in itemsList) {
+          final quantity = item['quantity'];
+        if (quantity != null) {
+        itemsCount += (quantity is int ? quantity : (quantity as num).toInt());
+        }
+      }
+    }
+    
     // new_achievements - это список достижений
     final newAchievements = result['new_achievements'];
-    
     final hasAchievements = newAchievements is List && newAchievements.isNotEmpty;
     
     final totalMinutes = durationSeconds ~/ 60;
@@ -113,6 +124,30 @@ class WalkResultDialog extends StatelessWidget {
                             const SizedBox(height: 2),
                             const Text(
                               'Время',
+                              style: TextStyle(
+                                fontFamily: 'Pangolin',
+                                fontSize: 11,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(width: 1, height: 30, color: AppTheme.primaryColor),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              steps.toString(),
+                              style: const TextStyle(
+                                fontFamily: 'Sigmar Cyrillic',
+                                fontSize: 14,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Шаги',
                               style: TextStyle(
                                 fontFamily: 'Pangolin',
                                 fontSize: 11,
