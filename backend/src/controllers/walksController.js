@@ -69,7 +69,7 @@ async function endWalk(req, res) {
     const userId = req.userId;
     const walkId = parseInt(req.params.walkId);
 
-    const { distance, duration } = req.body; 
+    const { distance, duration, steps } = req.body; 
     // приходит с фронта
     // 1. Получаем прогулку
     const { data: walk, error: walkError } = await supabase
@@ -94,7 +94,8 @@ async function endWalk(req, res) {
       .update({
         end_time: endTime,
         distance: distance,
-        duration: duration
+        duration: duration,
+        steps: steps
       })
       .eq('id', walkId);
 
@@ -121,11 +122,52 @@ async function endWalk(req, res) {
     // 6. Достижения
     const newAchievements = await checkAchievements(userId);
 
+    // 7. Получение списка предметов
+    let itemsData = [];
+
+    if (droppedItems.length > 0) {
+
+      // 1. считаем количество каждого предмета
+      const counts = {};
+
+      for (const itemId of droppedItems) {
+        counts[itemId] = (counts[itemId] || 0) + 1;
+      }
+
+      // 2. уникальные id
+      const uniqueIds = [...new Set(droppedItems)];
+
+      // 3. получаем предметы
+      const { data, error } = await supabase
+        .from('items')
+        .select(`
+          id,
+          name,
+          icon,
+          rarity_id,
+          rarity:rarity_id (
+            id,
+            type
+          )
+        `)
+        .in('id', uniqueIds);
+
+      if (error) {
+        console.error(error);
+      } else {
+
+        // 4. добавляем quantity
+        itemsData = data.map(item => ({
+          ...item,
+          quantity: counts[item.id]
+        }));
+      }
+    }
     res.json({
       walk_id: walkId,
       distance,
       duration,
-      items_collected: droppedItems.length,
+      items_collected: itemsData,
       new_achievements: newAchievements || []
     });
 
