@@ -167,6 +167,7 @@ async function endWalk(req, res) {
       walk_id: walkId,
       distance,
       duration,
+      steps,
       items_collected: itemsData,
       new_achievements: newAchievements || []
     });
