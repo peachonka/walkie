@@ -59,12 +59,13 @@ async function generateDrops(duration) {
 async function updateUserStats(userId) {
   const { data: walks } = await supabase
     .from('walk')
-    .select('distance, duration')
+    .select('distance, duration, steps')
     .eq('user_id', userId)
     .not('end_time', 'is', null);
 
   const totalDistance = walks.reduce((sum, w) => sum + (w.distance || 0), 0);
   const totalDuration = walks.reduce((sum, w) => sum + (w.duration || 0), 0);
+  const totalSteps = walks.reduce((sum, w) => sum + (w.steps || 0),0);
 
 const { error } = await supabase
   .from('user_stats')
@@ -73,6 +74,7 @@ const { error } = await supabase
       user_id: userId,
       total_distance: totalDistance,
       total_duration: totalDuration,
+      total_steps: totalSteps,
       total_walks: walks.length
     },
     { onConflict: 'user_id' }

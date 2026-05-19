@@ -58,16 +58,23 @@ router.post('/start', walksController.startWalk);
  *             required:
  *               - distance
  *               - duration
+ *               - steps
  *             properties:
  *               distance:
  *                 type: number
- *                 example: 2.5
+ *                 example: 700
+ *                 description: Walk distance in meters
  *               duration:
  *                 type: number
- *                 example: 1800
+ *                 example: 4500
+ *                 description: Walk duration in seconds
+ *               steps:
+ *                 type: integer
+ *                 example: 2000
+ *                 description: Total steps during the walk
  *     responses:
  *       200:
- *         description: Walk finished
+ *         description: Walk finished successfully
  *         content:
  *           application/json:
  *             schema:
@@ -75,16 +82,69 @@ router.post('/start', walksController.startWalk);
  *               properties:
  *                 walk_id:
  *                   type: integer
+ *                   example: 65
  *                 distance:
  *                   type: number
+ *                   example: 700
  *                 duration:
  *                   type: number
- *                 items_collected:
+ *                   example: 4500
+ *                 steps:
  *                   type: integer
- *                 new_achievements:
+ *                   example: 2000
+ *                 items_collected:
  *                   type: array
+ *                   description: Items received after the walk
  *                   items:
  *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       icon:
+ *                         type:
+ *                           - string
+ *                           - "null"
+ *                       rarity_id:
+ *                         type: integer
+ *                       rarity:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           type:
+ *                             type: string
+ *                       quantity:
+ *                         type: integer
+ *                         example: 4
+ *                 new_achievements:
+ *                   type: array
+ *                   description: Newly unlocked achievements
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       created_at:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       achieve_type:
+ *                         type: integer
+ *                       description:
+ *                         type: string
+ *                       score:
+ *                         type: number
+ *                       icon:
+ *                         type:
+ *                           - string
+ *                           - "null"
+ *                       type:
+ *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
  *       404:
  *         description: Walk not found
  *       400:
