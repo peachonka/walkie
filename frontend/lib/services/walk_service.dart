@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'http_interceptor.dart';
 
 class WalkService {
-  static const String baseUrl = 'https://walkie-v9i6.onrender.com/api';
+  static const String baseUrl = 'http://89.169.160.5:3000/api';
   static const String _activeWalkIdKey = 'active_walk_id';
   static const String _activeWalkStartTimeKey = 'active_walk_start_time';
   

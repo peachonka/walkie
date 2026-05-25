@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'http_interceptor.dart';
 
 class PetService {
-  static const String baseUrl = 'https://walkie-v9i6.onrender.com/api';
+  static const String baseUrl = 'http://89.169.160.5:3000/api';
   
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
