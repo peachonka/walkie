@@ -18,7 +18,6 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _petTypes = [];
   int? _selectedPetId;
-  int? _realPetId;
 
   @override
   void initState() {
@@ -40,17 +39,14 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
       print('-- Загружено типов питомцев: ${types.length}');
       
       if (types.isNotEmpty) {
-        _realPetId = types.first['id'];
-        final firstPet = types.first;
+        // Берем всех питомцев из ответа
+        _petTypes = types.map((pet) => {
+          'id': pet['id'],           // реальный ID питомца
+          'type': pet['type'],       // тип питомца
+          'avatar': pet['avatar'],   // URL картинки
+        }).toList();
         
-        _petTypes = List.generate(5, (index) => {
-          'id': index + 1,
-          'realId': _realPetId,
-          'type': firstPet['type'],
-          'avatar': firstPet['avatar'],
-        });
-        print('-- Создано 5 карточек');
-        print('-- Реальный ID питомца для отправки: $_realPetId');
+        print('-- Загружено ${_petTypes.length} питомцев');
       } else {
         _petTypes = [];
       }
@@ -81,12 +77,11 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     
     try {
       final selectedPet = _petTypes.firstWhere((pet) => pet['id'] == _selectedPetId);
-      final petIdToSend = selectedPet['realId'];
       
       print('-- Выбран питомец: ${selectedPet['type']}');
-      print('-- Отправляем запрос с petId: $petIdToSend, name: $name');
+      print('-- Отправляем запрос с petId: ${selectedPet['id']}, name: $name');
       
-      final success = await _petService.createPet(petIdToSend, name);
+      final success = await _petService.createPet(selectedPet['id'], name);
       
       if (success && mounted) {
         final prefs = await SharedPreferences.getInstance();
@@ -147,7 +142,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -199,7 +194,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                 ),
               ),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
             ],
           ),
         ),
@@ -252,7 +247,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     );
   }
 
-  Widget _buildPetCard(Map<String, dynamic> pet, bool isSelected) {
+ Widget _buildPetCard(Map<String, dynamic> pet, bool isSelected) {
     return Container(
       width: 220,
       margin: const EdgeInsets.only(right: 24),
@@ -292,14 +287,15 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(
-                      'assets/images/pet_0.png',
-                      height: 120,
+                    // Используем Image.network вместо Image.asset
+                    Image.network(
+                      pet['avatar'] ?? '',  // URL из ответа бэкенда
+                      height: 100,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          height: 120,
-                          width: 120,
+                          height: 100,
+                          width: 100,
                           decoration: BoxDecoration(
                             color: Colors.grey[300],
                             borderRadius: BorderRadius.circular(12),
@@ -311,10 +307,27 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                           ),
                         );
                       },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          height: 100,
+                          width: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF827454),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      pet['type'],
+                      pet['type'] ?? '',
                       style: const TextStyle(
                         fontFamily: 'Sigmar Cyrillic',
                         fontSize: 18,

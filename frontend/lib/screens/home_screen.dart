@@ -25,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _petName = 'Загрузка...';
+  String? _petAvatar;
   
   final ItemsService _itemsService = ItemsService();
   final PetService _petService = PetService();
@@ -39,13 +40,37 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _placedItems = [];
   
   @override
-  void initState() {
-    super.initState();
-    _setLandscapeOrientation();
-    _loadPetName();
-    _loadPlacedItems();
-    _checkAndRestoreActiveWalk();
+void initState() {
+  super.initState();
+  _setLandscapeOrientation();
+  _loadPetData();  // ← Изменить с _loadPetName на _loadPetData
+  _loadPlacedItems();
+  _checkAndRestoreActiveWalk();
+}
+
+Future<void> _loadPetData() async {
+  try {
+    // Загружаем имя из локального хранилища
+    final prefs = await SharedPreferences.getInstance();
+    final petName = prefs.getString('pet_name');
+    
+    // Загружаем данные питомца с бэкенда
+    final petData = await _petService.getPet();
+    
+    setState(() {
+      _petName = petName ?? 'Питомец';
+      _petAvatar = petData?['avatar'];  // ← URL аватара из ответа API
+    });
+    
+    print('Загружены данные питомца: имя=$_petName, аватар=$_petAvatar');
+  } catch (e) {
+    print('Ошибка загрузки данных питомца: $e');
+    setState(() {
+      _petName = 'Питомец';
+      _petAvatar = null;
+    });
   }
+}
 
   void _setLandscapeOrientation() {
     SystemChrome.setPreferredOrientations([
@@ -247,6 +272,8 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       print('Ошибка при обновлении имени питомца');
     }
+
+    _loadPetData(); 
   }
 
   void _showStatsModal() {
@@ -654,14 +681,42 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             
-            Center(
-              child: Image.asset(
-                'assets/images/pet_0.png',
-                width: 300,
-                height: 300,
-                fit: BoxFit.contain,
+            // Вместо хардкода Image.asset:
+Center(
+  child: _petAvatar != null && _petAvatar!.isNotEmpty
+      ? Image.network(
+          _petAvatar!,
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Image.asset(
+              'assets/images/pet_0.png',  // fallback
+              width: 300,
+              height: 300,
+              fit: BoxFit.contain,
+            );
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / 
+                      loadingProgress.expectedTotalBytes!
+                    : null,
+                color: AppTheme.primaryColor,
               ),
-            ),
+            );
+          },
+        )
+      : Image.asset(
+          'assets/images/pet_0.png',  // картинка по умолчанию
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+        ),
+),
             
             ..._placedItems.where((item) => 
               !(_isMovingItem && _movingItem != null && item['item_id'] == _movingItem!['item_id'])
