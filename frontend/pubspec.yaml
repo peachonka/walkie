@@ -1,5 +1,5 @@
-name: frontend
-description: "A new Flutter project."
+name: Walkie
+description: "A Flutter project."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 version: 1.0.0+1
@@ -31,6 +31,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -49,3 +50,10 @@ flutter:
     - family: Pangolin
       fonts:
         - asset: assets/fonts/Pangolin-Regular.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/image.png"
+  adaptive_icon_background: "#FFFFFF"     # ← Фон для Android adaptive icon
+  adaptive_icon_foreground: "assets/icon/image.png"  # ← Передний план

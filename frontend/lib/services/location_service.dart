@@ -62,9 +62,8 @@ class LocationService {
   
   // Проверка, изменилась ли позиция (игнорируем маленькие изменения)
   bool _isPositionChanged(Position newPos, Position oldPos) {
-    // Игнорируем изменения меньше 1 метра (шум GPS)
     double distance = _calculateDistance(newPos, oldPos);
-    return distance > 1.0; // Изменилось больше чем на 1 метр
+    return distance > 5.0; // Фильтрация шума
   }
   
   // Начать сбор координат
@@ -80,7 +79,7 @@ class LocationService {
     _collectLocation();
     
     // Запускаем таймер на каждые 3 секунды
-    _locationTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_isWalking) {
         _collectLocation();
       }

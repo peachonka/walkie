@@ -38,17 +38,22 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: StreamBuilder<AuthState>(
-        stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          final session = snapshot.data?.session;
-          
-          if (session != null) {
-            return const SplashScreen();
-          }
-          
-          return const AuthScreen();
-        },
-      ),
+  stream: Supabase.instance.client.auth.onAuthStateChange,
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const SplashScreen(); // или индикатор загрузки
+    }
+    
+    final session = snapshot.data?.session;
+    
+    if (session != null) {
+      // Дополнительно проверяем токен бэкенда
+      return const SplashScreen(); // SplashScreen сам проверит токены
+    }
+    
+    return const AuthScreen();
+  },
+),
     );
   }
 }
