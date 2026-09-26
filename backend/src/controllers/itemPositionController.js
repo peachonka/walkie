@@ -1,5 +1,7 @@
 // src/controllers/itemPositionController.js
-const supabase = require('../lib/supabaseClient');
+
+const db = require('../lib/db');
+
 // ============================================================
 // КОНТРОЛЛЕРЫ
 // ============================================================
@@ -12,29 +14,27 @@ async function getAllItemPositions(req, res) {
   try {
     const userId = req.userId;
 
-    const { data, error } = await supabase
-      .from('item_position')
-      .select(`
-        id,
-        x,
-        y,
-        item:item_id (
-          id,
-          name,
-          icon
-        )
-      `)
-      .eq('user_id', userId);
-
-    if (error) throw error;
+    const result = await db.query(`
+      SELECT
+        ip.id,
+        ip.x,
+        ip.y,
+        i.id AS item_id,
+        i.name AS item_name,
+        i.icon AS item_icon
+      FROM item_position ip
+      JOIN items i
+        ON ip.item_id = i.id
+      WHERE ip.user_id = $1
+    `, [userId]);
 
     res.json({
-      total: data.length,
-      positions: data.map(p => ({
+      total: result.rows.length,
+      positions: result.rows.map(p => ({
         id: p.id,
-        item_id: p.item.id,
-        item_name: p.item.name,
-        item_icon: p.item.icon,
+        item_id: p.item_id,
+        item_name: p.item_name,
+        item_icon: p.item_icon,
         x: p.x,
         y: p.y
       }))
@@ -56,57 +56,68 @@ async function upsertItemPosition(req, res) {
     const { item_id, x, y } = req.body;
 
     if (!item_id || x === undefined || y === undefined) {
-      return res.status(400).json({ error: 'Missing fields: item_id, x, y' });
+      return res.status(400).json({
+        error: 'Missing fields: item_id, x, y'
+      });
     }
 
     // 1. Проверяем, что предмет существует
-    const { data: item, error: itemError } = await supabase
-      .from('items')
-      .select('id, name, icon')
-      .eq('id', item_id)
-      .single();
+    const itemResult = await db.query(`
+      SELECT id, name, icon
+      FROM items
+      WHERE id = $1
+    `, [item_id]);
 
-    if (itemError || !item) {
-      return res.status(404).json({ error: 'Item not found' });
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Item not found'
+      });
     }
 
-    // 2. Проверяем, что предмет есть у пользователя
-    const { data: userItem } = await supabase
-      .from('user_item')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('item_id', item_id)
-      .limit(1);
+    const item = itemResult.rows[0];
 
-    if (!userItem || userItem.length === 0) {
-      return res.status(403).json({ error: 'You do not own this item' });
+    // 2. Проверяем, что предмет есть у пользователя
+    const userItemResult = await db.query(`
+      SELECT id
+      FROM user_item
+      WHERE user_id = $1
+        AND item_id = $2
+      LIMIT 1
+    `, [userId, item_id]);
+
+    if (userItemResult.rows.length === 0) {
+      return res.status(403).json({
+        error: 'You do not own this item'
+      });
     }
 
     // 3. UPSERT
-    const { data, error } = await supabase
-      .from('item_position')
-      .upsert({
-        user_id: userId,
+    const positionResult = await db.query(`
+      INSERT INTO item_position (
+        user_id,
         item_id,
         x,
         y
-      }, {
-        onConflict: ['user_id', 'item_id']
-      })
-      .select()
-      .single();
+      )
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (user_id, item_id)
+      DO UPDATE SET
+        x = EXCLUDED.x,
+        y = EXCLUDED.y
+      RETURNING id, x, y
+    `, [userId, item_id, x, y]);
 
-    if (error) throw error;
+    const position = positionResult.rows[0];
 
     res.json({
       success: true,
       position: {
-        id: data.id,
+        id: position.id,
         item_id,
         item_name: item.name,
         item_icon: item.icon,
-        x: data.x,
-        y: data.y
+        x: position.x,
+        y: position.y
       }
     });
 
@@ -124,21 +135,22 @@ async function removeItem(req, res) {
     const userId = req.userId;
     const positionId = parseInt(req.params.positionId);
 
-    const { data, error } = await supabase
-      .from('item_position')
-      .delete()
-      .eq('id', positionId)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    const result = await db.query(`
+      DELETE FROM item_position
+      WHERE id = $1
+        AND user_id = $2
+      RETURNING id
+    `, [positionId, userId]);
 
-    if (error || !data) {
-      return res.status(404).json({ error: 'Position not found' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Position not found'
+      });
     }
 
     res.json({
       success: true,
-      removed_id: data.id
+      removed_id: result.rows[0].id
     });
 
   } catch (error) {
@@ -147,7 +159,7 @@ async function removeItem(req, res) {
 }
 
 /**
- * Получить размещенные предметы для конкретного предмета (проверить, размещен ли)
+ * Получить размещенные предметы для конкретного предмета
  * GET /api/item-positions/item/:itemId
  */
 async function getPositionByItemId(req, res) {
@@ -155,14 +167,15 @@ async function getPositionByItemId(req, res) {
     const userId = req.userId;
     const itemId = parseInt(req.params.itemId);
 
-    const { data } = await supabase
-      .from('item_position')
-      .select('id, x, y')
-      .eq('user_id', userId)
-      .eq('item_id', itemId)
-      .single();
+    const result = await db.query(`
+      SELECT id, x, y
+      FROM item_position
+      WHERE user_id = $1
+        AND item_id = $2
+      LIMIT 1
+    `, [userId, itemId]);
 
-    if (!data) {
+    if (result.rows.length === 0) {
       return res.json({
         is_placed: false,
         position: null
@@ -171,7 +184,7 @@ async function getPositionByItemId(req, res) {
 
     res.json({
       is_placed: true,
-      position: data
+      position: result.rows[0]
     });
 
   } catch (error) {
@@ -180,19 +193,17 @@ async function getPositionByItemId(req, res) {
 }
 
 /**
- * Очистить все позиции пользователя (сбросить все предметы)
+ * Очистить все позиции пользователя
  * DELETE /api/item-positions
  */
 async function clearAllPositions(req, res) {
   try {
     const userId = req.userId;
 
-    const { error } = await supabase
-      .from('item_position')
-      .delete()
-      .eq('user_id', userId);
-
-    if (error) throw error;
+    await db.query(`
+      DELETE FROM item_position
+      WHERE user_id = $1
+    `, [userId]);
 
     res.json({
       success: true

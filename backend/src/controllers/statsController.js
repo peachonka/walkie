@@ -1,5 +1,7 @@
 // src/controllers/statsController.js
-const supabase = require('../lib/supabaseClient');
+
+const db = require('../lib/db');
+
 // ============================================================
 // КОНТРОЛЛЕРЫ
 // ============================================================
@@ -13,15 +15,18 @@ async function getUserStats(req, res) {
     const userId = req.userId;
 
     // 1. Получаем агрегированную статистику
-    const { data: stats, error: statsError } = await supabase
-      .from('user_stats')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const statsResult = await db.query(`
+      SELECT
+        total_distance,
+        total_duration,
+        total_walks,
+        total_steps
+      FROM user_stats
+      WHERE user_id = $1
+      LIMIT 1
+    `, [userId]);
 
-    if (statsError && statsError.code !== 'PGRST116') {
-      return res.status(500).json({ error: statsError.message });
-    }
+    const stats = statsResult.rows[0] || null;
 
     const safeStats = stats || {
       total_distance: 0,
@@ -31,43 +36,68 @@ async function getUserStats(req, res) {
     };
 
     // 2. Количество предметов
-    const { count: itemsCount, error: itemsError } = await supabase
-      .from('user_item')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+    const itemsResult = await db.query(`
+      SELECT COUNT(*) AS count
+      FROM user_item
+      WHERE user_id = $1
+    `, [userId]);
 
-    if (itemsError) {
-      return res.status(500).json({ error: itemsError.message });
-    }
+    const itemsCount = parseInt(itemsResult.rows[0].count);
 
     // 3. Первая прогулка
-    const { data: firstWalk } = await supabase
-      .from('walk')
-      .select('start_time')
-      .eq('user_id', userId)
-      .not('end_time', 'is', null)
-      .order('start_time', { ascending: true })
-      .limit(1)
-      .single();
+    const firstWalkResult = await db.query(`
+      SELECT start_time
+      FROM walk
+      WHERE user_id = $1
+        AND end_time IS NOT NULL
+      ORDER BY start_time ASC
+      LIMIT 1
+    `, [userId]);
+
+    const firstWalk = firstWalkResult.rows[0] || null;
 
     // 4. Последняя прогулка
-    const { data: lastWalk } = await supabase
-      .from('walk')
-      .select('start_time')
-      .eq('user_id', userId)
-      .not('end_time', 'is', null)
-      .order('start_time', { ascending: false })
-      .limit(1)
-      .single();
+    const lastWalkResult = await db.query(`
+      SELECT start_time
+      FROM walk
+      WHERE user_id = $1
+        AND end_time IS NOT NULL
+      ORDER BY start_time DESC
+      LIMIT 1
+    `, [userId]);
+
+    const lastWalk = lastWalkResult.rows[0] || null;
+
+    // PostgreSQL / node-postgres может вернуть timestamp
+    // не в том же виде, что Supabase.
+    const getDateOnly = value => {
+      if (!value) return null;
+
+      return new Date(value)
+        .toISOString()
+        .split('T')[0];
+    };
 
     res.json({
-      total_distance_km: parseFloat((safeStats.total_distance / 1000).toFixed(2)),
-      total_duration_hours: parseFloat((safeStats.total_duration / 3600).toFixed(1)),
+      total_distance_km: parseFloat(
+        (safeStats.total_distance / 1000).toFixed(2)
+      ),
+
+      total_duration_hours: parseFloat(
+        (safeStats.total_duration / 3600).toFixed(1)
+      ),
+
       total_walks: safeStats.total_walks,
       total_steps: safeStats.total_steps,
       total_items_collected: itemsCount || 0,
-      first_walk_date: firstWalk ? firstWalk.start_time.split('T')[0] : null,
-      last_walk_date: lastWalk ? lastWalk.start_time.split('T')[0] : null
+
+      first_walk_date: getDateOnly(
+        firstWalk?.start_time
+      ),
+
+      last_walk_date: getDateOnly(
+        lastWalk?.start_time
+      )
     });
 
   } catch (error) {
@@ -76,93 +106,7 @@ async function getUserStats(req, res) {
 }
 
 /**
- * Получить статистику за период
- * GET /api/stats/period?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
- */
-// async function getStatsByPeriod(req, res) {
-//   try {
-//     const userId = req.userId;
-//     const { start_date, end_date } = req.query;
-    
-//     if (!start_date || !end_date) {
-//       return res.status(400).json({ error: 'Missing required params: start_date, end_date' });
-//     }
-    
-//     const startDate = new Date(start_date);
-//     const endDate = new Date(end_date);
-//     endDate.setHours(23, 59, 59, 999);
-    
-//     // Фильтруем прогулки за период
-//     const periodWalks = walks.filter(w => {
-//       if (w.UserId !== userId) return false;
-//       if (!w.EndTime) return false;
-//       const walkDate = new Date(w.StartTime);
-//       return walkDate >= startDate && walkDate <= endDate;
-//     });
-    
-//     // Агрегируем данные
-//     let totalDistance = 0;
-//     let totalDuration = 0;
-//     let totalItemsCollected = 0;
-    
-//     // Получаем все коллекции пользователя
-//     const userCollections = collections.filter(c => c.UserId === userId);
-    
-//     for (const walk of periodWalks) {
-//       totalDistance += walk.Distance || 0;
-//       totalDuration += walk.Duration || 0;
-      
-//       const walkCollections = userCollections.filter(c => c.WalkId === walk.id);
-//       totalItemsCollected += walkCollections.length;
-//     }
-    
-//     const totalWalks = periodWalks.length;
-//     const totalSteps = Math.floor(totalDistance / 0.75);
-    
-//     // Дневная разбивка
-//     const dailyBreakdown = {};
-//     for (const walk of periodWalks) {
-//       const date = walk.StartTime.split('T')[0];
-//       if (!dailyBreakdown[date]) {
-//         dailyBreakdown[date] = {
-//           date: date,
-//           distance_km: 0,
-//           duration_min: 0,
-//           walks_count: 0,
-//           items_collected: 0
-//         };
-//       }
-//       dailyBreakdown[date].distance_km += (walk.Distance || 0) / 1000;
-//       dailyBreakdown[date].duration_min += (walk.Duration || 0) / 60;
-//       dailyBreakdown[date].walks_count++;
-      
-//       const walkCollections = collections.filter(c => c.UserId === userId && c.WalkId === walk.id);
-//       dailyBreakdown[date].items_collected += walkCollections.length;
-//     }
-    
-//     // Округляем значения
-//     for (const date in dailyBreakdown) {
-//       dailyBreakdown[date].distance_km = parseFloat(dailyBreakdown[date].distance_km.toFixed(2));
-//       dailyBreakdown[date].duration_min = parseFloat(dailyBreakdown[date].duration_min.toFixed(1));
-//     }
-    
-//     res.json({
-//       start_date: start_date,
-//       end_date: end_date,
-//       total_distance_km: parseFloat((totalDistance / 1000).toFixed(2)),
-//       total_duration_hours: parseFloat((totalDuration / 3600).toFixed(1)),
-//       total_walks: totalWalks,
-//       total_steps: totalSteps,
-//       total_items_collected: totalItemsCollected,
-//       daily_breakdown: Object.values(dailyBreakdown).sort((a, b) => a.date.localeCompare(b.date))
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// }
-
-/**
- * Получить статистику по дням (для графика)
+ * Получить статистику по дням
  * GET /api/stats/daily?limit=30
  */
 async function getDailyStats(req, res) {
@@ -172,46 +116,65 @@ async function getDailyStats(req, res) {
     const limit = parseInt(req.query.limit) || null;
 
     // 1. Получаем прогулки
-    let query = supabase
-      .from('walk')
-      .select('id, start_time, distance, duration')
-      .eq('user_id', userId)
-      .not('end_time', 'is', null);
+    let query = `
+      SELECT
+        id,
+        start_time,
+        distance,
+        duration
+      FROM walk
+      WHERE user_id = $1
+        AND end_time IS NOT NULL
+    `;
+
+    const params = [userId];
+    let paramIndex = 2;
 
     if (start_date) {
-      query = query.gte('start_time', start_date);
+      query += `
+        AND start_time >= $${paramIndex}
+      `;
+      params.push(start_date);
+      paramIndex++;
     }
 
     if (end_date) {
       const end = new Date(end_date);
       end.setHours(23, 59, 59, 999);
-      query = query.lte('start_time', end.toISOString());
+
+      query += `
+        AND start_time <= $${paramIndex}
+      `;
+      params.push(end.toISOString());
+      paramIndex++;
     }
 
-    const { data: walks, error: walksError } = await query;
+    const walksResult = await db.query(query, params);
+    const walks = walksResult.rows;
 
-    if (walksError) {
-      return res.status(500).json({ error: walksError.message });
-    }
-
-    if (!walks || walks.length === 0) {
-      return res.json({ daily_stats: [] });
+    if (walks.length === 0) {
+      return res.json({
+        daily_stats: []
+      });
     }
 
     // 2. Получаем предметы пользователя
-    const { data: items, error: itemsError } = await supabase
-      .from('user_item')
-      .select('walk_id')
-      .eq('user_id', userId);
+    const itemsResult = await db.query(`
+      SELECT walk_id
+      FROM user_item
+      WHERE user_id = $1
+    `, [userId]);
 
-    if (itemsError) {
-      return res.status(500).json({ error: itemsError.message });
-    }
+    const items = itemsResult.rows;
 
     // 3. Группируем предметы по прогулкам
     const itemsMap = {};
+
     for (const item of items) {
-      if (!itemsMap[item.walk_id]) itemsMap[item.walk_id] = 0;
+      if (!itemsMap[item.walk_id]) {
+        itemsMap[item.walk_id] = 0;
+      }
+
       itemsMap[item.walk_id]++;
     }
 
@@ -219,7 +182,9 @@ async function getDailyStats(req, res) {
     const dailyMap = {};
 
     for (const walk of walks) {
-      const date = walk.start_time.split('T')[0];
+      const date = new Date(walk.start_time)
+        .toISOString()
+        .split('T')[0];
 
       if (!dailyMap[date]) {
         dailyMap[date] = {
@@ -231,18 +196,25 @@ async function getDailyStats(req, res) {
         };
       }
 
-      dailyMap[date].distance_km += (walk.distance || 0) / 1000;
-      dailyMap[date].duration_min += (walk.duration || 0) / 60;
+      dailyMap[date].distance_km +=
+        (walk.distance || 0) / 1000;
+
+      dailyMap[date].duration_min +=
+        (walk.duration || 0) / 60;
+
       dailyMap[date].walks_count++;
 
-      dailyMap[date].items_collected += itemsMap[walk.id] || 0;
+      dailyMap[date].items_collected +=
+        itemsMap[walk.id] || 0;
     }
 
     // 5. Преобразуем в массив
     let result = Object.values(dailyMap);
 
     // 6. Сортировка
-    result.sort((a, b) => b.date.localeCompare(a.date));
+    result.sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
 
     // 7. Limit
     if (limit) {
@@ -251,8 +223,13 @@ async function getDailyStats(req, res) {
 
     // 8. Округление
     result.forEach(day => {
-      day.distance_km = parseFloat(day.distance_km.toFixed(2));
-      day.duration_min = parseFloat(day.duration_min.toFixed(1));
+      day.distance_km = parseFloat(
+        day.distance_km.toFixed(2)
+      );
+
+      day.duration_min = parseFloat(
+        day.duration_min.toFixed(1)
+      );
     });
 
     res.json({
@@ -267,5 +244,5 @@ async function getDailyStats(req, res) {
 
 module.exports = {
   getUserStats,
-  getDailyStats,
+  getDailyStats
 };

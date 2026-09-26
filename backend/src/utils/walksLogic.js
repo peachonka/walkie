@@ -1,136 +1,234 @@
-const supabase = require('../lib/supabaseClient');
+const db = require('../lib/db');
 
-// выбор редкости
+// ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================
+
+// Выбор редкости
 function pickRarity(rarities) {
   const rand = Math.random();
   let cumulative = 0;
 
   for (const rarity of rarities) {
     cumulative += rarity.drop_chance;
+
     if (rand <= cumulative) {
       return rarity;
     }
   }
 
-  return rarities[rarities.length - 1]; // fallback
+  return rarities[rarities.length - 1];
 }
 
-// генерация предметов за прогулку
-async function generateDrops(duration) {
-  const attempts = Math.floor(duration / 600); // каждые 10 минут
+// ============================================================
+// Генерация предметов за прогулку
+// ============================================================
 
-  if (attempts <= 0) return [];
+async function generateDrops(duration) {
+  const attempts = Math.floor(duration / 600);
+
+  if (attempts <= 0) {
+    return [];
+  }
 
   // 1. Получаем редкости
-  const { data: rarities } = await supabase
-    .from('rarity')
-    .select('*');
+  const raritiesResult = await db.query(`
+    SELECT *
+    FROM rarity
+  `);
+
+  const rarities = raritiesResult.rows;
 
   // 2. Получаем все предметы
-  const { data: items } = await supabase
-    .from('items')
-    .select('id, rarity_id');
+  const itemsResult = await db.query(`
+    SELECT id, rarity_id
+    FROM items
+  `);
+
+  const items = itemsResult.rows;
 
   const drops = [];
 
   for (let i = 0; i < attempts; i++) {
-    // шанс выпадения предмета вообще 80%
-    if (Math.random() > 0.8) continue;
 
+    // Шанс выпадения предмета вообще 80%
+    if (Math.random() > 0.8) {
+      continue;
+    }
 
-    // 3. выбираем редкость
+    // 3. Выбираем редкость
     const rarity = pickRarity(rarities);
 
-    // 4. фильтруем предметы этой редкости
-    const itemsOfRarity = items.filter(i => i.rarity_id === rarity.id);
+    // 4. Фильтруем предметы этой редкости
+    const itemsOfRarity =
+      items.filter(item =>
+        item.rarity_id === rarity.id
+      );
 
-    if (itemsOfRarity.length === 0) continue;
+    if (itemsOfRarity.length === 0) {
+      continue;
+    }
 
-    // 5. выбираем случайный предмет
-    const randomItem = itemsOfRarity[Math.floor(Math.random() * itemsOfRarity.length)];
+    // 5. Выбираем случайный предмет
+    const randomItem =
+      itemsOfRarity[
+        Math.floor(
+          Math.random() * itemsOfRarity.length
+        )
+      ];
 
     drops.push(randomItem.id);
   }
+
   return drops;
 }
 
-// обновление статистики пользователя
-// для каждого пользователя - одна строка в таблице
+// ============================================================
+// Обновление статистики пользователя
+// ============================================================
+
 async function updateUserStats(userId) {
-  const { data: walks } = await supabase
-    .from('walk')
-    .select('distance, duration, steps')
-    .eq('user_id', userId)
-    .not('end_time', 'is', null);
 
-  const totalDistance = walks.reduce((sum, w) => sum + (w.distance || 0), 0);
-  const totalDuration = walks.reduce((sum, w) => sum + (w.duration || 0), 0);
-  const totalSteps = walks.reduce((sum, w) => sum + (w.steps || 0),0);
+  const result = await db.query(`
+    SELECT
+      distance,
+      duration,
+      steps
+    FROM walk
+    WHERE user_id = $1
+      AND end_time IS NOT NULL
+  `, [userId]);
 
-const { error } = await supabase
-  .from('user_stats')
-  .upsert(
-    {
-      user_id: userId,
-      total_distance: totalDistance,
-      total_duration: totalDuration,
-      total_steps: totalSteps,
-      total_walks: walks.length
-    },
-    { onConflict: 'user_id' }
+  const walks = result.rows;
+
+  const totalDistance = walks.reduce(
+    (sum, walk) =>
+      sum + (walk.distance || 0),
+    0
   );
 
-  if (error) {
-    console.error('Update stats error:', error);
-  }
+  const totalDuration = walks.reduce(
+    (sum, walk) =>
+      sum + (walk.duration || 0),
+    0
+  );
+
+  const totalSteps = walks.reduce(
+    (sum, walk) =>
+      sum + (walk.steps || 0),
+    0
+  );
+
+  await db.query(`
+    INSERT INTO user_stats (
+      user_id,
+      total_distance,
+      total_duration,
+      total_steps,
+      total_walks
+    )
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      total_distance = EXCLUDED.total_distance,
+      total_duration = EXCLUDED.total_duration,
+      total_steps = EXCLUDED.total_steps,
+      total_walks = EXCLUDED.total_walks
+  `, [
+    userId,
+    totalDistance,
+    totalDuration,
+    totalSteps,
+    walks.length
+  ]);
 }
 
-// проверка достижений
-async function checkAchievements(userId) {
-  // 1. Получаем прогресс
-  const { data: stats } = await supabase
-    .from('user_stats')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+// ============================================================
+// Проверка достижений
+// ============================================================
 
-  if (!stats) return [];
+async function checkAchievements(userId) {
+
+  // 1. Получаем прогресс
+  const statsResult = await db.query(`
+    SELECT *
+    FROM user_stats
+    WHERE user_id = $1
+    LIMIT 1
+  `, [userId]);
+
+  if (statsResult.rows.length === 0) {
+    return [];
+  }
+
+  const stats = statsResult.rows[0];
 
   // 2. Получаем все достижения
-  const { data: achievements } = await supabase
-    .from('achievement')
-    .select(`
-      *,
-      type:achieve_type (name)
-    `);
+  const achievementsResult = await db.query(`
+    SELECT
+      a.id,
+      a.name,
+      a.description,
+      a.score,
+      a.icon,
+      json_build_object(
+        'name', at.name
+      ) AS type
+    FROM achievement a
+    JOIN achieve_types at
+      ON a.achieve_type = at.id
+  `);
+
+  const achievements =
+    achievementsResult.rows;
 
   // 3. Получаем уже полученные
-  const { data: userAchievements } = await supabase
-    .from('user_achievement')
-    .select('achievement_id')
-    .eq('user_id', userId);
+  const userAchievementsResult =
+    await db.query(`
+      SELECT achievement_id
+      FROM user_achievement
+      WHERE user_id = $1
+    `, [userId]);
 
-  const earnedIds = userAchievements.map(a => a.achievement_id);
+  const userAchievements =
+    userAchievementsResult.rows;
+
+  const earnedIds =
+    userAchievements.map(
+      achievement => achievement.achievement_id
+    );
 
   const newAchievements = [];
 
-  // 4. группируем по типу
+  // 4. Группируем по типу
   const grouped = {};
 
-  for (const ach of achievements) {
-    const type = ach.type.name;
+  for (const achievement of achievements) {
+    const type = achievement.type.name;
 
-    if (!grouped[type]) grouped[type] = [];
-    grouped[type].push(ach);
+    if (!grouped[type]) {
+      grouped[type] = [];
+    }
+
+    grouped[type].push(achievement);
   }
 
-  // 5. по каждому типу
+  // 5. По каждому типу
   for (const type in grouped) {
-    const list = grouped[type]
-      .filter(a => !earnedIds.includes(a.id))
-      .sort((a, b) => a.score - b.score);
 
-    if (list.length === 0) continue;
+    const list = grouped[type]
+      .filter(
+        achievement =>
+          !earnedIds.includes(achievement.id)
+      )
+      .sort(
+        (a, b) =>
+          a.score - b.score
+      );
+
+    if (list.length === 0) {
+      continue;
+    }
 
     const nextAchievement = list[0];
 
@@ -140,29 +238,45 @@ async function checkAchievements(userId) {
       case 'Шаги':
         value = stats.total_steps;
         break;
+
       case 'Расстояние':
         value = stats.total_distance;
         break;
+
       case 'Время':
         value = stats.total_duration;
         break;
+
       case 'Прогулки':
         value = stats.total_walks;
         break;
     }
 
     if (value >= nextAchievement.score) {
-      // выдаем
-      await supabase.from('user_achievement').insert({
-        user_id: userId,
-        achievement_id: nextAchievement.id
-      });
 
-      newAchievements.push(nextAchievement);
+      // Выдаём достижение
+      await db.query(`
+        INSERT INTO user_achievement (
+          user_id,
+          achievement_id
+        )
+        VALUES ($1, $2)
+      `, [
+        userId,
+        nextAchievement.id
+      ]);
+
+      newAchievements.push(
+        nextAchievement
+      );
     }
   }
 
   return newAchievements;
 }
 
-module.exports = { generateDrops,  updateUserStats, checkAchievements};
+module.exports = {
+  generateDrops,
+  updateUserStats,
+  checkAchievements
+};

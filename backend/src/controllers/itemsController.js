@@ -1,5 +1,6 @@
 // src/controllers/itemsController.js
-const supabase = require('../lib/supabaseClient');
+
+const db = require('../lib/db');
 
 // ============================================================
 // КОНТРОЛЛЕРЫ
@@ -8,46 +9,53 @@ const supabase = require('../lib/supabaseClient');
 /**
  * Получить все предметы
  * GET /api/items
- * 
- * Query параметры:
- * - zoneId (опционально) — фильтр по зоне
  */
 async function getAllItems(req, res) {
   try {
-    const zoneId = req.query.zoneId ? parseInt(req.query.zoneId) : null;
+    const zoneId = req.query.zoneId
+      ? parseInt(req.query.zoneId)
+      : null;
 
-    let query = supabase
-      .from('items')
-      .select(`
-        id,
-        name,
-        icon,
-        created_at,
-        rarity:rarity_id (
-          id,
-          type,
-          drop_chance
-        ),
-        zone:zone_id (
-          id,
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
+    let query = `
+      SELECT
+        i.id,
+        i.name,
+        i.icon,
+        i.created_at,
+        json_build_object(
+          'id', r.id,
+          'type', r.type,
+          'drop_chance', r.drop_chance
+        ) AS rarity,
+        json_build_object(
+          'id', z.id,
+          'name', z.name
+        ) AS zone
+      FROM items i
+      JOIN rarity r
+        ON i.rarity_id = r.id
+      JOIN zones z
+        ON i.zone_id = z.id
+    `;
+
+    const params = [];
 
     if (zoneId) {
-      query = query.eq('zone_id', zoneId);
+      params.push(zoneId);
+      query += `
+        WHERE i.zone_id = $1
+      `;
     }
 
-    const { data, error } = await query;
+    query += `
+      ORDER BY i.created_at DESC
+    `;
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const result = await db.query(query, params);
 
     res.json({
-      total: data.length,
-      items: data
+      total: result.rows.length,
+      items: result.rows
     });
 
   } catch (error) {
@@ -63,34 +71,35 @@ async function getItemById(req, res) {
   try {
     const itemId = parseInt(req.params.itemId);
 
-    const { data, error } = await supabase
-      .from('items')
-      .select(`
-        id,
-        name,
-        icon,
-        rarity:rarity_id (
-          id,
-          type,
-          drop_chance
-        ),
-        zone:zone_id (
-          id,
-          name
-        )
-      `)
-      .eq('id', itemId)
-      .single();
+    const result = await db.query(`
+      SELECT
+        i.id,
+        i.name,
+        i.icon,
+        json_build_object(
+          'id', r.id,
+          'type', r.type,
+          'drop_chance', r.drop_chance
+        ) AS rarity,
+        json_build_object(
+          'id', z.id,
+          'name', z.name
+        ) AS zone
+      FROM items i
+      JOIN rarity r
+        ON i.rarity_id = r.id
+      JOIN zones z
+        ON i.zone_id = z.id
+      WHERE i.id = $1
+    `, [itemId]);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Item not found'
+      });
     }
 
-    if (!data) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
-
-    res.json(data);
+    res.json(result.rows[0]);
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -100,12 +109,6 @@ async function getItemById(req, res) {
 /**
  * Получить все предметы, собранные пользователем
  * GET /api/items/collected
- * 
- * Query параметры:
- * - limit (опционально, по умолчанию 50)
- * - offset (опционально, по умолчанию 0)
- * 
- * Сортировка по времени получения
  */
 async function getUserItems(req, res) {
   try {
@@ -113,35 +116,36 @@ async function getUserItems(req, res) {
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
 
-    const { data, error } = await supabase
-      .from('user_item')
-      .select(`
-        id,
-        created_at,
-        walk_id,
-        item:items (
-          id,
-          name,
-          icon,
-          rarity:rarity_id (
-            type,
-            drop_chance
+    const result = await db.query(`
+      SELECT
+        ui.id,
+        ui.created_at,
+        ui.walk_id,
+        json_build_object(
+          'id', i.id,
+          'name', i.name,
+          'icon', i.icon,
+          'rarity', json_build_object(
+            'type', r.type,
+            'drop_chance', r.drop_chance
           )
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+        ) AS item
+      FROM user_item ui
+      JOIN items i
+        ON ui.item_id = i.id
+      JOIN rarity r
+        ON i.rarity_id = r.id
+      WHERE ui.user_id = $1
+      ORDER BY ui.created_at DESC
+      LIMIT $2
+      OFFSET $3
+    `, [userId, limit, offset]);
 
     res.json({
-      total: data.length,
+      total: result.rows.length,
       limit,
       offset,
-      items: data
+      items: result.rows
     });
 
   } catch (error) {
@@ -149,23 +153,19 @@ async function getUserItems(req, res) {
   }
 }
 
-
 /**
  * Получить редкости предметов
  * GET /api/items/rarities
  */
 async function getRarities(req, res) {
   try {
-    const { data, error } = await supabase
-      .from('rarity')
-      .select('*');
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const result = await db.query(`
+      SELECT *
+      FROM rarity
+    `);
 
     res.json({
-      rarities: data
+      rarities: result.rows
     });
 
   } catch (error) {

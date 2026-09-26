@@ -1,56 +1,58 @@
-// src/controllers/walksController.js (обновленный)
+const {
+  generateDrops,
+  updateUserStats,
+  checkAchievements
+} = require('../utils/walksLogic');
 
-// const { calculateDistance, isPointInSquareZone } = require('../utils/calculations');
-// const { updateUserProgress, checkAndAwardAchievements } = require('./achievementsController');
-const { generateDrops,  updateUserStats, checkAchievements} = require('../utils/walksLogic')
-const supabase = require('../lib/supabaseClient');
-
+const db = require('../lib/db');
 
 // ============================================================
-// ФУНКЦИИ
+// КОНТРОЛЛЕРЫ
 // ============================================================
 
 /**
  * Начать прогулку
  * POST /api/walks/start
- * 
- * body: { userId }
  */
 async function startWalk(req, res) {
   try {
     const userId = req.userId;
 
-    // проверка активной прогулки
-    const { data: activeWalk } = await supabase
-      .from('walk')
-      .select('*')
-      .eq('user_id', userId)
-      .is('end_time', null)
-      .single();
+    // Проверка активной прогулки
+    const activeWalkResult = await db.query(`
+      SELECT *
+      FROM walk
+      WHERE user_id = $1
+        AND end_time IS NULL
+      LIMIT 1
+    `, [userId]);
 
-    if (activeWalk) {
-      return res.status(409).json({ 
+    if (activeWalkResult.rows.length > 0) {
+      const activeWalk = activeWalkResult.rows[0];
+
+      return res.status(409).json({
         error: 'Active walk already exists',
         walkId: activeWalk.id
       });
     }
 
-    const { data, error } = await supabase
-      .from('walk')
-      .insert({
-        user_id: userId,
-        start_time: new Date().toISOString()
-      })
-      .select()
-      .single();
+    const result = await db.query(`
+      INSERT INTO walk (
+        user_id,
+        start_time
+      )
+      VALUES ($1, $2)
+      RETURNING *
+    `, [
+      userId,
+      new Date().toISOString()
+    ]);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const walk = result.rows[0];
 
     res.json({
-      walk_id: data.id,
-      start_time: data.start_time
+      walk_id: walk.id,
+      start_time: walk.start_time
     });
 
   } catch (error) {
@@ -61,108 +63,129 @@ async function startWalk(req, res) {
 /**
  * Завершить прогулку
  * POST /api/walks/:walkId/end
- * 
- * body: { userId}
  */
 async function endWalk(req, res) {
   try {
     const userId = req.userId;
     const walkId = parseInt(req.params.walkId);
 
-    const { distance, duration, steps } = req.body; 
-    // приходит с фронта
+    const { distance, duration, steps } = req.body;
+
     // 1. Получаем прогулку
-    const { data: walk, error: walkError } = await supabase
-      .from('walk')
-      .select('*')
-      .eq('id', walkId)
-      .eq('user_id', userId)
-      .single();
-    
-    if (walkError || !walk) {
-      return res.status(404).json({ error: 'Walk not found' });
+    const walkResult = await db.query(`
+      SELECT *
+      FROM walk
+      WHERE id = $1
+        AND user_id = $2
+    `, [walkId, userId]);
+
+    if (walkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Walk not found'
+      });
     }
 
+    const walk = walkResult.rows[0];
+
     if (walk.end_time) {
-      return res.status(400).json({ error: 'Walk already finished' });
+      return res.status(400).json({
+        error: 'Walk already finished'
+      });
     }
 
     // 2. Закрываем прогулку
     const endTime = new Date().toISOString();
-    const { error: updateError } = await supabase
-      .from('walk')
-      .update({
-        end_time: endTime,
-        distance: distance,
-        duration: duration,
-        steps: steps
-      })
-      .eq('id', walkId);
 
-    if (updateError) {
-      return res.status(500).json({ error: updateError.message });
-    }
+    const updateResult = await db.query(`
+      UPDATE walk
+      SET
+        end_time = $1,
+        distance = $2,
+        duration = $3,
+        steps = $4
+      WHERE id = $5
+      RETURNING *
+    `, [
+      endTime,
+      distance,
+      duration,
+      steps,
+      walkId
+    ]);
 
     // 3. Генерация предметов
     const droppedItems = await generateDrops(duration);
 
     // 4. Сохраняем предметы
     if (droppedItems.length > 0) {
-      const inserts = droppedItems.map(itemId => ({
-        user_id: userId,
-        item_id: itemId,
-        walk_id: walkId
-      }));
-
-      await supabase.from('user_item').insert(inserts);
+      for (const itemId of droppedItems) {
+        await db.query(`
+          INSERT INTO user_item (
+            user_id,
+            item_id,
+            walk_id
+          )
+          VALUES ($1, $2, $3)
+        `, [
+          userId,
+          itemId,
+          walkId
+        ]);
+      }
     }
+
     // 5. Обновляем user_stats
     await updateUserStats(userId);
 
     // 6. Достижения
-    const newAchievements = await checkAchievements(userId);
+    const newAchievements =
+      await checkAchievements(userId);
 
     // 7. Получение списка предметов
     let itemsData = [];
 
     if (droppedItems.length > 0) {
 
-      // 1. считаем количество каждого предмета
+      // Считаем количество каждого предмета
       const counts = {};
 
       for (const itemId of droppedItems) {
-        counts[itemId] = (counts[itemId] || 0) + 1;
+        counts[itemId] =
+          (counts[itemId] || 0) + 1;
       }
 
-      // 2. уникальные id
-      const uniqueIds = [...new Set(droppedItems)];
+      // Уникальные ID
+      const uniqueIds = [
+        ...new Set(droppedItems)
+      ];
 
-      // 3. получаем предметы
-      const { data, error } = await supabase
-        .from('items')
-        .select(`
-          id,
-          name,
-          icon,
-          rarity_id,
-          rarity:rarity_id (
-            id,
-            type
-          )
-        `)
-        .in('id', uniqueIds);
+      // Получаем предметы
+      const placeholders = uniqueIds
+        .map((_, index) => `$${index + 1}`)
+        .join(', ');
 
-      if (error) {
-        console.error(error);
-      } else {
+      const itemsResult = await db.query(`
+        SELECT
+          i.id,
+          i.name,
+          i.icon,
+          i.rarity_id,
+          json_build_object(
+            'id', r.id,
+            'type', r.type
+          ) AS rarity
+        FROM items i
+        JOIN rarity r
+          ON i.rarity_id = r.id
+        WHERE i.id IN (${placeholders})
+      `, uniqueIds);
 
-        // 4. добавляем quantity
-        itemsData = data.map(item => ({
-          ...item,
-          quantity: counts[item.id]
-        }));
-      }
+      itemsData = itemsResult.rows.map(item => ({
+        ...item,
+        quantity: counts[item.id]
+      }));
     }
+
     res.json({
       walk_id: walkId,
       distance,
@@ -174,93 +197,16 @@ async function endWalk(req, res) {
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
+
+    res.status(500).json({
+      error: error.message
+    });
   }
 }
 
-// async function addTrackPoint(req, res) {
-//   try {
-//     const userId = req.userId;
-//     const walkId = parseInt(req.params.walkId);
-//     const { lat, lng, sequenceNumber } = req.body;
-    
-//     if (!lat || !lng || sequenceNumber === undefined) {
-//       return res.status(400).json({ error: 'Missing: lat, lng, sequenceNumber' });
-//     }
-    
-//     const walk = walks.find(w => w.id === walkId && w.UserId === userId);
-//     if (!walk) {
-//       return res.status(404).json({ error: 'Walk not found' });
-//     }
-//     if (walk.EndTime) {
-//       return res.status(400).json({ error: 'Walk already completed' });
-//     }
-    
-//     // Сохраняем точку
-//     trackPoints.push({
-//       id: trackPointCounter++,
-//       WalkId: walkId,
-//       Lat: lat,
-//       Lng: lng,
-//       SequenceNumber: sequenceNumber,
-//       Created: new Date().toISOString()
-//     });
-    
-//     // Проверка зон и выдача предметов
-//     let collectedItem = null;
-    
-//     for (const zone of zones) {
-//       if (isPointInSquareZone(lat, lng, zone)) {
-//         const zoneItems = items.filter(item => item.zoneId === zone.id);
-        
-//         for (const item of zoneItems) {
-//           const itemRarity = rarity.find(r => r.id === item.rarityId);
-//           const random = Math.random() * 100;
-          
-//           if (random <= itemRarity.dropChance) {
-//             const alreadyCollected = collections.some(
-//               c => c.UserId === userId && c.WalkId === walkId && c.ItemId === item.id
-//             );
-            
-//             if (!alreadyCollected) {
-//               collectedItem = {
-//                 id: item.id,
-//                 name: item.name,
-//                 icon: item.icon,
-//                 rarity: { type: itemRarity.type, dropChance: itemRarity.dropChance }
-//               };
-              
-//               collections.push({
-//                 id: collectionCounter++,
-//                 UserId: userId,
-//                 ItemId: item.id,
-//                 WalkId: walkId
-//               });
-              
-//               break;
-//             }
-//           }
-//         }
-        
-//         if (collectedItem) break;
-//       }
-//     }
-    
-//     res.json({
-//       success: true,
-//       collected_item: collectedItem
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// }
-
-
 /**
- * Завершить прогулку
+ * Получить историю прогулок
  * GET /api/walks/history
- * 
- * body: { userId }
  */
 async function getWalkHistory(req, res) {
   try {
@@ -268,67 +214,92 @@ async function getWalkHistory(req, res) {
     const limit = parseInt(req.query.limit) || 20;
     const offset = parseInt(req.query.offset) || 0;
 
-    const { data, error } = await supabase
-      .from('walk')
-      .select('*')
-      .eq('user_id', userId)
-      .not('end_time', 'is', null)
-      .order('start_time', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const result = await db.query(`
+      SELECT *
+      FROM walk
+      WHERE user_id = $1
+        AND end_time IS NOT NULL
+      ORDER BY start_time DESC
+      LIMIT $2
+      OFFSET $3
+    `, [
+      userId,
+      limit,
+      offset
+    ]);
 
     res.json({
-      walks: data
+      walks: result.rows
     });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message
+    });
   }
 }
 
-
 /**
- * Завершить прогулку
+ * Получить детали прогулки
  * GET /api/walks/:walkId
- * 
- * body: { userId }
  */
 async function getWalkDetails(req, res) {
   try {
     const userId = req.userId;
     const walkId = parseInt(req.params.walkId);
 
-    const { data, error } = await supabase
-      .from('walk')
-      .select(`
-        id,
-        start_time,
-        end_time,
-        distance,
-        duration,
-        items:user_item (
-          item:items (
-            id,
-            name,
-            icon
-          )
-        )
-      `)
-      .eq('id', walkId)
-      .eq('user_id', userId)
-      .single();
+    const result = await db.query(`
+      SELECT
+        w.id,
+        w.start_time,
+        w.end_time,
+        w.distance,
+        w.duration
+      FROM walk w
+      WHERE w.id = $1
+        AND w.user_id = $2
+    `, [walkId, userId]);
 
-    if (error || !data) {
-      return res.status(404).json({ error: 'Walk not found' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Walk not found'
+      });
     }
 
-    res.json(data);
+    const walk = result.rows[0];
+
+    const itemsResult = await db.query(`
+      SELECT
+        ui.id,
+        i.id AS item_id,
+        i.name,
+        i.icon
+      FROM user_item ui
+      JOIN items i
+        ON ui.item_id = i.id
+      WHERE ui.walk_id = $1
+    `, [walkId]);
+
+    res.json({
+      id: walk.id,
+      start_time: walk.start_time,
+      end_time: walk.end_time,
+      distance: walk.distance,
+      duration: walk.duration,
+      items: itemsResult.rows.map(item => ({
+        id: item.id,
+        item: {
+          id: item.item_id,
+          name: item.name,
+          icon: item.icon
+        }
+      }))
+    });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message
+    });
   }
 }
 

@@ -1,10 +1,11 @@
 // src/controllers/petController.js
-const supabase = require('../lib/supabaseClient');
+
+const db = require('../lib/db');
+
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
-// Опыт, необходимый для каждого уровня
 const EXP_PER_LEVEL = 100;
 
 function getExpToNextLevel(currentLevel, currentExp) {
@@ -15,12 +16,12 @@ function getExpToNextLevel(currentLevel, currentExp) {
 function calculateNewLevel(exp) {
   let level = 1;
   let remainingExp = exp;
-  
+
   while (remainingExp >= level * EXP_PER_LEVEL) {
     remainingExp -= level * EXP_PER_LEVEL;
     level++;
   }
-  
+
   return { level, exp: remainingExp };
 }
 
@@ -29,7 +30,6 @@ function calculateNewLevel(exp) {
 // ============================================================
 
 /**
- * SUPABASE
  * Получить информацию о питомце пользователя
  * GET /api/pet
  */
@@ -37,36 +37,39 @@ async function getPet(req, res) {
   try {
     const userId = req.userId;
 
-    const { data, error } = await supabase
-      .from('user_pet')
-      .select(`
-        id,
-        name,
-        level,
-        exp,
-        pet:pet_id (
-          type,
-          avatar
-        )
-      `)
-      .eq('user_id', userId)
-      .maybeSingle();
+    const result = await db.query(`
+      SELECT
+        up.id,
+        up.name,
+        up.level,
+        up.exp,
+        p.type,
+        p.avatar
+      FROM user_pet up
+      JOIN pet p
+        ON up.pet_id = p.id
+      WHERE up.user_id = $1
+      LIMIT 1
+    `, [userId]);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Pet not found for this user'
+      });
     }
 
-    if (!data) {
-      return res.status(404).json({ error: 'Pet not found for this user' });
-    }
+    const data = result.rows[0];
 
-    const expToNextLevel = getExpToNextLevel(data.level, data.exp);
+    const expToNextLevel = getExpToNextLevel(
+      data.level,
+      data.exp
+    );
 
     res.json({
       id: data.id,
       name: data.name,
-      type: data.pet.type,
-      avatar: data.pet.avatar,
+      type: data.type,
+      avatar: data.avatar,
       level: data.level,
       exp: data.exp,
       exp_to_next_level: expToNextLevel
@@ -78,112 +81,115 @@ async function getPet(req, res) {
 }
 
 /**
- * SUPABASE
  * Обновить имя питомца
  * PUT /api/pet/name
- * Body: { name: string }
  */
 async function updatePetName(req, res) {
   try {
     const userId = req.userId;
     const { name } = req.body;
-    
+
     if (!name || name.trim().length === 0) {
-      return res.status(400).json({ error: 'Name is required' });
+      return res.status(400).json({
+        error: 'Name is required'
+      });
     }
-    
+
     if (name.length > 50) {
-      return res.status(400).json({ error: 'Name too long (max 50 characters)' });
+      return res.status(400).json({
+        error: 'Name too long (max 50 characters)'
+      });
     }
 
-    const { data, error } = await supabase
-    .from('user_pet')
-    .update({ name: name.trim() })
-    .eq('user_id', userId)
-    .select();
-    
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const result = await db.query(`
+      UPDATE user_pet
+      SET name = $1
+      WHERE user_id = $2
+      RETURNING name
+    `, [name.trim(), userId]);
 
-    if (!data || data.length === 0) {
-      return res.status(404).json({ error: 'Pet not found' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Pet not found'
+      });
     }
 
     res.json({
       success: true,
-      new_name: data[0].name
+      new_name: result.rows[0].name
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
 
 /**
- * SUPABASE
  * Получить список доступных типов питомцев
  * GET /api/pet/types
  */
 async function getPetTypes(req, res) {
   try {
-    const { data, error } = await supabase
-      .from('pet')
-      .select('id, type, avatar');
+    const result = await db.query(`
+      SELECT id, type, avatar
+      FROM pet
+    `);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
     res.json({
-      pets: data
+      pets: result.rows
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
+
 /**
- * SUPABASE
- * Создать пользователю питомцы
+ * Создать пользователю питомца
  * POST /api/pet
- * Body: { name: string, petId: int }
  */
 async function createPet(req, res) {
   try {
-
     const { petId, name } = req.body;
     const userId = req.userId;
 
     if (!petId) {
-      return res.status(400).json({ error: 'petId is required' });
+      return res.status(400).json({
+        error: 'petId is required'
+      });
     }
 
     if (!name || name.trim().length === 0) {
-      return res.status(400).json({ error: 'Name is required' });
+      return res.status(400).json({
+        error: 'Name is required'
+      });
     }
 
     if (name.length > 50) {
-      return res.status(400).json({ error: 'Name too long (max 50 characters)' });
+      return res.status(400).json({
+        error: 'Name too long (max 50 characters)'
+      });
     }
 
-    const { data, error } = await supabase
-      .from('user_pet')
-      .insert([
-        {
-          user_id: userId,
-          pet_id: petId,
-          name: name.trim(),
-          level: 1,
-          exp: 0
-        }
-      ])
-      .select(); // чтобы сразу вернуть созданную запись
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    const result = await db.query(`
+      INSERT INTO user_pet (
+        user_id,
+        pet_id,
+        name,
+        level,
+        exp
+      )
+      VALUES ($1, $2, $3, 1, 0)
+      RETURNING *
+    `, [
+      userId,
+      petId,
+      name.trim()
+    ]);
 
     res.status(201).json({
       success: true,
-      pet: data[0]
+      pet: result.rows[0]
     });
 
   } catch (error) {
