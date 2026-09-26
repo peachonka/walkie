@@ -14,7 +14,8 @@ const statsRoutes = require('./src/routes/stats');
 const petRoutes = require('./src/routes/pet');
 const zonesRoutes = require('./src/routes/zones');
 const achievementsRoutes = require('./src/routes/achievements');
-const itemPositionRoutes = require('./src/routes/itemPosition');  // НОВЫЙ
+const itemPositionRoutes = require('./src/routes/itemPosition');
+const authRoutes = require('./src/routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,7 +62,8 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/pet', petRoutes);
 app.use('/api/zones', zonesRoutes);
 app.use('/api/achievements', achievementsRoutes);
-app.use('/api/item-positions', itemPositionRoutes);  // НОВЫЙ
+app.use('/api/item-positions', itemPositionRoutes);
+app.use('/api/auth', authRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
