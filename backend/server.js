@@ -5,6 +5,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
+const path = require('path');
 
 dotenv.config();
 
@@ -56,6 +57,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'))
+);
 app.use('/api/walks', walksRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/stats', statsRoutes);
@@ -64,6 +69,7 @@ app.use('/api/zones', zonesRoutes);
 app.use('/api/achievements', achievementsRoutes);
 app.use('/api/item-positions', itemPositionRoutes);
 app.use('/api/auth', authRoutes);
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -87,4 +93,5 @@ app.listen(PORT, () => {
   console.log(`🗺️ Zones: http://localhost:${PORT}/api/zones`);
   console.log(`🏆 Achievements: http://localhost:${PORT}/api/achievements`);
   console.log(`📍 Item Positions: http://localhost:${PORT}/api/item-positions`);
+  console.log(`Auth: http://localhost:${PORT}/api/auth`);
 });
