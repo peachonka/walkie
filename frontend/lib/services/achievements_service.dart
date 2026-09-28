@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/http_interceptor.dart';
 
 class AchievementsService {
-  static const String baseUrl = 'http://89.169.160.5:3000/api';
-  
+  static const String baseUrl = 'http://157.22.192.92:3000/api';
+
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
@@ -25,9 +25,9 @@ class AchievementsService {
         Uri.parse('$baseUrl/achievements/progress'),
         headers: headers,
       );
-      
+
       print('Achievements progress - Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final achievements = data['achievements'] as List;
@@ -49,7 +49,7 @@ class AchievementsService {
         Uri.parse('$baseUrl/achievements'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final achievements = data['achievements'] as List;
@@ -71,7 +71,7 @@ class AchievementsService {
         Uri.parse('$baseUrl/achievements/user'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final achievements = data['achievements'] as List;
@@ -93,7 +93,7 @@ class AchievementsService {
         Uri.parse('$baseUrl/achievements/types'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final types = data['types'] as List;

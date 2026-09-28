@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'http_interceptor.dart';
 
 class ItemsService {
-  static const String baseUrl = 'http://89.169.160.5:3000/api';
-  
+  static const String baseUrl = 'http://157.22.192.92:3000/api';
+
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
@@ -25,9 +25,9 @@ class ItemsService {
         Uri.parse('$baseUrl/items/collected'),
         headers: headers,
       );
-      
+
       print('Коллекция - Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data['items']);
@@ -53,9 +53,9 @@ class ItemsService {
           'y': y,
         }),
       );
-      
+
       print('Размещение предмета - Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         print('Предмет размещён успешно');
         return true;
@@ -76,7 +76,7 @@ class ItemsService {
         Uri.parse('$baseUrl/item-positions'),
         headers: headers,
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data['positions']);
@@ -95,9 +95,9 @@ class ItemsService {
         Uri.parse('$baseUrl/item-positions/$positionId'),
         headers: headers,
       );
-      
+
       print('Удаление размещённого предмета - Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         print('Предмет успешно убран с экрана');
         return true;

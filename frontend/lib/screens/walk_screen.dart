@@ -9,7 +9,7 @@ import '../services/location_service.dart';
 import '../widgets/walk/walk_result_dialog.dart';
 
 class WalkScreen extends StatefulWidget {
-  final int walkId;
+  final String walkId; // ← было int, теперь String
   final Function(Map<String, dynamic> result) onWalkEnd;
 
   const WalkScreen({
@@ -25,22 +25,22 @@ class WalkScreen extends StatefulWidget {
 class _WalkScreenState extends State<WalkScreen> {
   final WalkService _walkService = WalkService();
   final LocationService _locationService = LocationService();
-  
+
   final MapController _mapController = MapController();
-  
+
   LatLng _currentPosition = const LatLng(55.751244, 37.618423);
-  
+
   double _totalDistance = 0.0;
-  int _durationSeconds = 0; // Реальное время в секундах
+  int _durationSeconds = 0;
   bool _isWalking = true;
   bool _isEnding = false;
   bool _hasLocation = false;
   bool _isMapReady = false;
   String _locationStatus = "Запрос разрешения...";
-  
+
   late Timer _timer;
   DateTime? _walkStartTime;
-  
+
   @override
   void initState() {
     super.initState();
@@ -48,10 +48,10 @@ class _WalkScreenState extends State<WalkScreen> {
     _walkStartTime = DateTime.now();
     _initLocationTracking();
   }
-  
+
   Future<void> _initLocationTracking() async {
     bool hasPermission = await _locationService.requestPermissions();
-    
+
     if (!hasPermission) {
       setState(() {
         _locationStatus = "Нет разрешения на геолокацию";
@@ -59,7 +59,7 @@ class _WalkScreenState extends State<WalkScreen> {
       _showLocationErrorDialog();
       return;
     }
-    
+
     if (!await Geolocator.isLocationServiceEnabled()) {
       setState(() {
         _locationStatus = "GPS выключен";
@@ -67,21 +67,22 @@ class _WalkScreenState extends State<WalkScreen> {
       _showLocationErrorDialog();
       return;
     }
-    
+
     setState(() {
       _locationStatus = "Отслеживание позиции...";
     });
-    
+
     Position? startPosition = await _locationService.getCurrentPosition();
     if (startPosition != null) {
       setState(() {
-        _currentPosition = LatLng(startPosition.latitude, startPosition.longitude);
+        _currentPosition =
+            LatLng(startPosition.latitude, startPosition.longitude);
         _hasLocation = true;
         _locationStatus = "Отслеживание активно";
       });
       _moveCameraToCurrentPosition();
     }
-    
+
     _locationService.onDistanceUpdated = (distance) {
       if (mounted && _isWalking) {
         setState(() {
@@ -89,7 +90,7 @@ class _WalkScreenState extends State<WalkScreen> {
         });
       }
     };
-    
+
     _locationService.onPositionUpdated = (position) {
       if (mounted && _isWalking) {
         setState(() {
@@ -98,24 +99,25 @@ class _WalkScreenState extends State<WalkScreen> {
         _moveCameraToCurrentPosition();
       }
     };
-    
+
     _locationService.startTracking();
     _startTimer();
   }
-  
+
   void _moveCameraToCurrentPosition() {
     if (_hasLocation && _isMapReady) {
       _mapController.move(_currentPosition, 17.0);
     }
   }
-  
+
   void _showLocationErrorDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Ошибка геолокации'),
-        content: const Text('Для отслеживания прогулки необходим доступ к геолокации. Пожалуйста, включите GPS и дайте разрешение.'),
+        content: const Text(
+            'Для отслеживания прогулки необходим доступ к геолокации. Пожалуйста, включите GPS и дайте разрешение.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -137,14 +139,13 @@ class _WalkScreenState extends State<WalkScreen> {
   }
 
   void _startTimer() {
-    // Обновляем время каждую секунду
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isWalking || !mounted) return;
-      
+
       setState(() {
         if (_walkStartTime != null) {
-          // Рассчитываем реальное время с момента начала прогулки
-          _durationSeconds = DateTime.now().difference(_walkStartTime!).inSeconds;
+          _durationSeconds =
+              DateTime.now().difference(_walkStartTime!).inSeconds;
         } else {
           _durationSeconds++;
         }
@@ -155,23 +156,22 @@ class _WalkScreenState extends State<WalkScreen> {
   Future<void> _endWalk() async {
     if (_isEnding) return;
     if (!_isWalking) return;
-    
+
     setState(() {
       _isEnding = true;
       _isWalking = false;
     });
-    
+
     _locationService.stopTracking();
     _timer.cancel();
-    
+
     final distanceInMeters = _totalDistance.round();
     final durationInSeconds = _durationSeconds;
-    
+
     print('=== ЗАВЕРШЕНИЕ ПРОГУЛКИ ===');
     print('Расстояние: ${distanceInMeters}м');
     print('Время: ${durationInSeconds}с (${durationInSeconds ~/ 60} мин)');
-    
-    // Показываем диалог загрузки
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -179,21 +179,19 @@ class _WalkScreenState extends State<WalkScreen> {
         child: CircularProgressIndicator(color: AppTheme.primaryColor),
       ),
     );
-    
+
     try {
       final result = await _walkService.endWalk(
-        widget.walkId,
+        widget.walkId, // ← String, теперь совпадает с сигнатурой сервиса
         distanceInMeters.toDouble(),
         durationInSeconds,
       );
-      
+
       if (!mounted) return;
-      
-      // Закрываем диалог загрузки
+
       Navigator.pop(context);
-      
+
       if (result != null) {
-        // Показываем диалог с наградами
         final dialogResult = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -204,15 +202,12 @@ class _WalkScreenState extends State<WalkScreen> {
             },
           ),
         );
-        
+
         if (dialogResult == true && mounted) {
-          // Закрываем экран прогулки
           Navigator.pop(context);
-          // Обновляем главный экран
           widget.onWalkEnd(result);
         }
       } else {
-        // Ошибка - показываем сообщение и закрываем экран
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ошибка при завершении прогулки')),
         );
@@ -238,7 +233,7 @@ class _WalkScreenState extends State<WalkScreen> {
     final hours = _durationSeconds ~/ 3600;
     final minutes = (_durationSeconds % 3600) ~/ 60;
     final seconds = _durationSeconds % 60;
-    
+
     if (hours > 0) {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
@@ -301,8 +296,7 @@ class _WalkScreenState extends State<WalkScreen> {
               ),
             ],
           ),
-          
-          // Верхняя панель со статистикой
+
           Positioned(
             top: 0,
             left: 0,
@@ -337,15 +331,15 @@ class _WalkScreenState extends State<WalkScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildStatColumn(_formatDuration(), 'Время'),
-                      _buildStatColumn(_formatDistance(_totalDistance), 'Дистанция'),
+                      _buildStatColumn(
+                          _formatDistance(_totalDistance), 'Дистанция'),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          
-          // Кнопка центрирования на текущей позиции
+
           if (_hasLocation)
             Positioned(
               bottom: 100,
@@ -358,8 +352,7 @@ class _WalkScreenState extends State<WalkScreen> {
                 child: const Icon(Icons.my_location, color: Colors.blue),
               ),
             ),
-          
-          // Кнопка завершения прогулки
+
           Positioned(
             bottom: 30,
             left: 20,
@@ -393,8 +386,7 @@ class _WalkScreenState extends State<WalkScreen> {
                     ),
             ),
           ),
-          
-          // Индикатор получения GPS
+
           if (!_hasLocation)
             Positioned(
               top: 120,

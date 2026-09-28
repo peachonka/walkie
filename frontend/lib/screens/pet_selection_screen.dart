@@ -17,7 +17,9 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isLoading = false;
   List<Map<String, dynamic>> _petTypes = [];
-  int? _selectedPetId;
+  String? _selectedPetId; // ← было int?, теперь String?
+
+  static const String baseUrl = 'http://157.22.192.92:3000';
 
   @override
   void initState() {
@@ -37,15 +39,14 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     try {
       final types = await _petService.getPetTypes();
       print('-- Загружено типов питомцев: ${types.length}');
-      
+
       if (types.isNotEmpty) {
-        // Берем всех питомцев из ответа
         _petTypes = types.map((pet) => {
-          'id': pet['id'],           // реальный ID питомца
-          'type': pet['type'],       // тип питомца
-          'avatar': pet['avatar'],   // URL картинки
+          'id': pet['id'],
+          'type': pet['type'],
+          'avatar': pet['avatar'],
         }).toList();
-        
+
         print('-- Загружено ${_petTypes.length} питомцев');
       } else {
         _petTypes = [];
@@ -62,7 +63,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
 
   Future<void> _createPet() async {
     final name = _nameController.text.trim();
-    
+
     if (_selectedPetId == null) {
       _showError('Выберите питомца');
       return;
@@ -74,20 +75,25 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     }
 
     setState(() => _isLoading = true);
-    
+
     try {
-      final selectedPet = _petTypes.firstWhere((pet) => pet['id'] == _selectedPetId);
-      
+      final selectedPet = _petTypes.firstWhere(
+        (pet) => pet['id'].toString() == _selectedPetId.toString(),
+      );
+
       print('-- Выбран питомец: ${selectedPet['type']}');
       print('-- Отправляем запрос с petId: ${selectedPet['id']}, name: $name');
-      
-      final success = await _petService.createPet(selectedPet['id'], name);
-      
+
+      final success = await _petService.createPet(
+        selectedPet['id'].toString(),
+        name,
+      );
+
       if (success && mounted) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('pet_name', name);
         print('-- Имя питомца сохранено в хранилище: $name');
-        
+
         print('-- Питомец успешно создан, переход на HomeScreen');
         Navigator.pushReplacement(
           context,
@@ -162,7 +168,8 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           color: const Color(0xFFFFF1D5),
-                          border: Border.all(color: const Color(0xFF827454), width: 1),
+                          border:
+                              Border.all(color: const Color(0xFF827454), width: 1),
                         ),
                         child: TextFormField(
                           controller: _nameController,
@@ -170,9 +177,11 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                           style: const TextStyle(fontSize: 16),
                           decoration: const InputDecoration(
                             hintText: 'Имя питомца',
-                            hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB1B1B1)),
+                            hintStyle: TextStyle(
+                                fontSize: 14, color: Color(0xFFB1B1B1)),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
                           ),
                         ),
                       ),
@@ -180,11 +189,12 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                   ],
                 ),
               ),
-              
+
               Expanded(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   child: Row(
                     children: _petTypes.map((pet) {
                       final isSelected = _selectedPetId == pet['id'];
@@ -193,7 +203,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 10),
             ],
           ),
@@ -204,10 +214,10 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
         child: ElevatedButton(
           onPressed: isButtonEnabled && !_isLoading ? _createPet : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: isButtonEnabled 
+            backgroundColor: isButtonEnabled
                 ? const Color(0xFFFFF1D5)
                 : const Color(0xFFB1B1B1),
-            foregroundColor: isButtonEnabled 
+            foregroundColor: isButtonEnabled
                 ? const Color(0xFF827454)
                 : const Color(0xFF666666),
             disabledBackgroundColor: const Color(0xFFB1B1B1),
@@ -217,7 +227,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: isButtonEnabled 
+                color: isButtonEnabled
                     ? const Color(0xFF827454)
                     : Colors.transparent,
                 width: 2,
@@ -247,14 +257,20 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
     );
   }
 
- Widget _buildPetCard(Map<String, dynamic> pet, bool isSelected) {
+  Widget _buildPetCard(Map<String, dynamic> pet, bool isSelected) {
+    final avatarPath = pet['avatar'] ?? '';
+    // Если путь относительный — добавляем baseUrl
+    final avatarUrl = avatarPath.startsWith('http')
+        ? avatarPath
+        : '$baseUrl$avatarPath';
+
     return Container(
       width: 220,
       margin: const EdgeInsets.only(right: 24),
       child: GestureDetector(
         onTap: () {
           setState(() {
-            _selectedPetId = pet['id'];
+            _selectedPetId = pet['id'].toString();
           });
           _focusNode.unfocus();
           print('-- Выбрана карточка: id=${pet['id']}, тип=${pet['type']}');
@@ -275,7 +291,7 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  color: isSelected 
+                  color: isSelected
                       ? const Color(0xFFACCD98)
                       : const Color(0xFFE4C78C),
                   border: Border.all(
@@ -287,9 +303,8 @@ class _PetSelectionScreenState extends State<PetSelectionScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Используем Image.network вместо Image.asset
                     Image.network(
-                      pet['avatar'] ?? '',  // URL из ответа бэкенда
+                      avatarUrl,
                       height: 100,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {

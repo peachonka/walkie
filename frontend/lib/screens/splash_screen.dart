@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
 import '../services/pet_service.dart';
 import 'home_screen.dart';
 import 'pet_selection_screen.dart';
+import 'auth_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,31 +16,39 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final PetService _petService = PetService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
-    
+
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    
-    _checkPetAndNavigate();
+
+    _checkAuthAndNavigate();
   }
 
-  Future<void> _checkPetAndNavigate() async {
+  Future<void> _checkAuthAndNavigate() async {
     await Future.delayed(const Duration(seconds: 2));
-    
     if (!mounted) return;
-    
+
+    final isAuthorized = await _authService.isAuthorized();
+    if (!isAuthorized) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AuthScreen()),
+      );
+      return;
+    }
+
     final hasPet = await _petService.hasPet();
-    
     if (!mounted) return;
-    
+
     if (hasPet) {
       await _loadAndSavePetInfo();
-      
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -64,11 +74,6 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e) {
       print('-- Ошибка при загрузке информации о питомце: $e');
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override

@@ -1,27 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'screens/auth_screen.dart';
+import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'services/http_interceptor.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await dotenv.load(fileName: ".env");
-  
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseKey = dotenv.env['SUPABASE_KEY'];
-  
-  if (supabaseUrl == null || supabaseKey == null) {
-    throw Exception('Missing SUPABASE_URL or SUPABASE_KEY in .env file');
-  }
-  
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseKey,
-  );
-  
+
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   runApp(const MyApp());
 }
 
@@ -37,23 +26,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: StreamBuilder<AuthState>(
-  stream: Supabase.instance.client.auth.onAuthStateChange,
-  builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const SplashScreen(); // или индикатор загрузки
-    }
-    
-    final session = snapshot.data?.session;
-    
-    if (session != null) {
-      // Дополнительно проверяем токен бэкенда
-      return const SplashScreen(); // SplashScreen сам проверит токены
-    }
-    
-    return const AuthScreen();
-  },
-),
+      home: const SplashScreen(),
     );
   }
 }

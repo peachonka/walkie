@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'splash_screen.dart';
+import '../services/auth_service.dart';
 
 const Color primaryColor = Color(0xFF135B78);
 const Color accentColor = Color(0xFF2C6E8A);
@@ -19,50 +18,30 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final AuthService _authService = AuthService();
+
   bool _isLoading = false;
   bool _isSignUp = false;
   bool _obscurePassword = true;
 
-  final supabase = Supabase.instance.client;
-  late SharedPreferences _prefs;
-
   @override
   void initState() {
     super.initState();
-    
+
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    
-    _initPreferences();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAuth();
     });
   }
 
-  Future<void> _initPreferences() async {
-    _prefs = await SharedPreferences.getInstance();
-  }
-
-  Future<void> _saveToken(String token) async {
-    await _prefs.setString('auth_token', token);
-    print('Токен сохранен в локальное хранилище: $token');
-  }
-
-  Future<String?> _getToken() async {
-    return _prefs.getString('auth_token');
-  }
-
-  void _checkAuth() async {
-    final user = supabase.auth.currentUser;
-    if (user != null && mounted) {
-      final session = supabase.auth.currentSession;
-      if (session != null) {
-        await _saveToken(session.accessToken);
-        print('Пользователь уже авторизован: ${user.email}');
-        print('Токен из хранилища: ${await _getToken()}');
-      }
+  Future<void> _checkAuth() async {
+    final isAuthorized = await _authService.isAuthorized();
+    if (isAuthorized && mounted) {
+      print('Пользователь уже авторизован, токен найден');
       _navigateToHome();
     }
   }
@@ -87,91 +66,48 @@ class _AuthScreenState extends State<AuthScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
+      String? error;
+
       if (_isSignUp) {
         print('Начинаем регистрацию для email: $email');
-        
-        final response = await supabase.auth.signUp(
-          email: email,
-          password: password,
-        );
-        
-        if (response.user != null) {
-          print('Регистрация успешна');
-          print('Пользователь: ${response.user!.email}');
-          print('User ID: ${response.user!.id}');
-          
-          final session = supabase.auth.currentSession;
-          if (session != null) {
-            await _saveToken(session.accessToken);
-            print('Access Token: ${session.accessToken}');
-            print('Refresh Token: ${session.refreshToken}');
-          } else {
-            print('Сессия не создана (возможно требуется подтверждение email)');
-          }
-          
-          setState(() {
-            _isSignUp = false;
-            _passwordController.clear();
-          });
+        error = await _authService.registerAndLogin(email, password);
+
+        if (error == null) {
+          // Успех — сразу переходим на Splash
+          if (mounted) _navigateToHome();
         } else {
-          print('Ошибка: Пользователь не создан');
+          _showError(error);
         }
       } else {
         print('Начинаем авторизацию для email: $email');
-        
-        final response = await supabase.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
-        
-        if (response.user != null) {
-          print('Авторизация успешна');
-          print('Пользователь: ${response.user!.email}');
-          print('User ID: ${response.user!.id}');
-          
-          final session = supabase.auth.currentSession;
-          if (session != null) {
-            await _saveToken(session.accessToken);
-            print('Access Token: ${session.accessToken}');
-            print('Refresh Token: ${session.refreshToken}');
-            print('Token expires at: ${session.expiresAt}');
-          }
-          
-          if (mounted) {
-            _navigateToHome();
-          }
+        error = await _authService.login(email, password);
+
+        if (error == null) {
+          if (mounted) _navigateToHome();
         } else {
-          print('Ошибка: Не удалось получить данные пользователя');
+          _showError(error);
         }
-      }
-    } on AuthException catch (error) {
-      print('Ошибка аутентификации: ${error.message}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
       }
     } catch (error) {
       print('Неизвестная ошибка: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $error'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      _showError('Ошибка: $error');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -197,9 +133,12 @@ class _AuthScreenState extends State<AuthScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final double inputWidth = screenWidth - 76 > 316 ? 316 : screenWidth - 76;
     final double finalInputWidth = inputWidth < 260 ? 260 : inputWidth;
-    final double buttonWidth = _isSignUp ? finalInputWidth : (screenWidth - 215 > 178 ? 178 : screenWidth - 215);
-    final double finalButtonWidth = _isSignUp ? buttonWidth : (buttonWidth < 120 ? 120 : buttonWidth);
-    
+    final double buttonWidth = _isSignUp
+        ? finalInputWidth
+        : (screenWidth - 215 > 178 ? 178 : screenWidth - 215);
+    final double finalButtonWidth =
+        _isSignUp ? buttonWidth : (buttonWidth < 120 ? 120 : buttonWidth);
+
     return Scaffold(
       appBar: null,
       extendBodyBehindAppBar: true,
@@ -221,7 +160,6 @@ class _AuthScreenState extends State<AuthScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 150),
-                  
                   const Text(
                     'Walkie',
                     textAlign: TextAlign.center,
@@ -236,7 +174,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  
                   Text(
                     _isSignUp ? 'Регистрация' : 'Авторизация',
                     textAlign: TextAlign.center,
@@ -251,7 +188,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  
                   Form(
                     key: _formKey,
                     child: Column(
@@ -302,7 +238,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         const SizedBox(height: 27),
-                        
                         Container(
                           width: finalInputWidth,
                           height: 42,
@@ -362,7 +297,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         const SizedBox(height: 42),
-                        
                         SizedBox(
                           width: finalButtonWidth,
                           height: 42,
@@ -407,7 +341,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
                         GestureDetector(
                           onTap: _isLoading ? null : _toggleMode,
                           child: Text(
