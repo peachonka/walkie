@@ -82,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadPlacedItems() async {
     final items = await _itemsService.getPlacedItems();
+    print('=== Загруженные placedItems: $items');
     setState(() {
       _placedItems = items;
     });
@@ -177,21 +178,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Восстановление активной прогулки при старте HomeScreen.
-  ///
-  /// Логика:
-  /// 1. Берём сохранённый walkId из SharedPreferences.
-  /// 2. Если он есть — показываем диалог с 3 кнопками:
-  ///    «Продолжить» — открываем WalkScreen.
-  ///    «Завершить сейчас» — принудительно завершаем через POST /walks/:id/end.
-  ///    «Отмена» — оставляем как есть (можно будет восстановить позже).
   Future<void> _checkAndRestoreActiveWalk() async {
     final savedId = await _walkService.getSavedActiveWalkId();
     if (savedId == null || !mounted) return;
 
     print('Восстановление: найдена сохранённая прогулка ID=$savedId');
 
-    // Даём кадру отрисоваться, чтобы диалог показался поверх UI
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
@@ -266,7 +258,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (action == 'finish') {
-      // Принудительно завершаем прогулку
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -288,12 +279,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Не удалось завершить прогулку')),
           );
-          // Не удалилось — попробуем очистить локально, чтобы разблокировать старт
           await _walkService.clearSavedActiveWalk();
         }
       }
     }
-    // action == 'cancel' или null — ничего не делаем
   }
 
   Future<void> _updatePetName(String newName) async {
@@ -388,9 +377,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final itemToRemove = _movingItem!;
     final itemName = itemToRemove['item_name'];
-    final positionId = itemToRemove['id'];
+    final positionId = itemToRemove['id']?.toString() ?? '';
 
     print('Убираем предмет с экрана: $itemName, positionId: $positionId');
+
+    if (positionId.isEmpty) {
+      print('!!! positionId пустой — не можем удалить');
+      return;
+    }
 
     showDialog(
       context: context,
@@ -409,7 +403,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (success && mounted) {
         setState(() {
-          _placedItems.removeWhere((p) => p['id'] == positionId);
+          _placedItems.removeWhere(
+              (p) => p['id']?.toString() == positionId);
           _isMovingItem = false;
           _movingItem = null;
           _tempPosition = null;
@@ -428,18 +423,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return item['name'] ?? item['item_name'] ?? 'Предмет';
   }
 
-  int? _getItemId(Map<String, dynamic> item) {
-    if (item['item_id'] != null) {
-      return item['item_id'] is int
-          ? item['item_id']
-          : int.tryParse(item['item_id'].toString());
-    }
-    if (item['id'] != null) {
-      return item['id'] is int
-          ? item['id']
-          : int.tryParse(item['id'].toString());
-    }
-    return null;
+  /// ID предмета теперь строка (UUID с бэка).
+  String? _getItemId(Map<String, dynamic> item) {
+    final v = item['item_id'] ?? item['id'];
+    if (v == null) return null;
+    final s = v.toString();
+    return s.isEmpty ? null : s;
   }
 
   void _onScreenTap(TapDownDetails details) {
@@ -458,12 +447,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _confirmPlacement() async {
     if (_tempPosition == null) return;
 
-    int? itemId;
+    String? itemId;
     String itemName;
 
     if (_isMovingItem && _movingItem != null) {
-      itemId = _movingItem!['item_id'];
-      itemName = _movingItem!['item_name'];
+      itemId = _getItemId(_movingItem!);
+      itemName = _movingItem!['item_name'] ?? _getItemName(_movingItem!);
     } else if (_isPlacingItem && _selectedItem != null) {
       itemId = _getItemId(_selectedItem!);
       itemName = _getItemName(_selectedItem!);
@@ -473,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (itemId == null) {
+      print('!!! itemId пустой — не можем разместить');
       _resetPlacingMode();
       return;
     }
@@ -486,7 +476,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (success && mounted) {
       if (_isMovingItem && _movingItem != null) {
         setState(() {
-          final index = _placedItems.indexWhere((p) => p['item_id'] == itemId);
+          final index = _placedItems.indexWhere(
+              (p) => _getItemId(p) == itemId);
           if (index != -1) {
             _placedItems[index] = {
               ..._placedItems[index],
@@ -692,8 +683,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-      // Если есть активная прогулка — принудительно завершим её,
-      // чтобы пользователь не «застрял» на бэке
       try {
         final savedId = await _walkService.getSavedActiveWalkId();
         if (savedId != null) {
@@ -721,12 +710,64 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ============================================================
+  // КАРТИНКИ ПРЕДМЕТОВ
+  // ============================================================
+
+  String _resolveItemIcon(Map<String, dynamic> item) {
+    final iconPath = item['item_icon'] ?? item['icon'];
+
+    if (iconPath != null && iconPath.toString().isNotEmpty) {
+      final path = iconPath.toString();
+      if (path.startsWith('http')) return path;
+      if (path.startsWith('/')) return '$baseUrl$path';
+      return '$baseUrl/$path';
+    }
+
+    return _getItemIconFromName(item['item_name'] ?? '');
+  }
+
   String _getItemIconFromName(String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('очк')) return 'assets/images/items/sunglasses.png';
     if (lowerName.contains('миск')) return 'assets/images/items/bowl.png';
     if (lowerName.contains('ков')) return 'assets/images/items/carpet.png';
     return 'assets/images/items/sunglasses.png';
+  }
+
+  Widget _buildItemImage(
+    Map<String, dynamic> item, {
+    double size = 80,
+  }) {
+    return Image.network(
+      _resolveItemIcon(item),
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Image.asset(
+          _getItemIconFromName(item['item_name'] ?? ''),
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error2, stackTrace2) {
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.image,
+                size: size / 2,
+                color: Colors.grey,
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   String _resolveImageUrl(String? path) {
@@ -749,6 +790,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // Питомец
             Center(
               child: _petAvatar != null && _petAvatar!.isNotEmpty
                   ? Image.network(
@@ -785,10 +827,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
 
+            // Размещённые предметы
             ..._placedItems.where((item) =>
                 !(_isMovingItem &&
                     _movingItem != null &&
-                    item['item_id'] == _movingItem!['item_id'])).map((item) =>
+                    _getItemId(item) == _getItemId(_movingItem!))).map((item) =>
                 Positioned(
                   left: item['x'],
                   top: item['y'],
@@ -796,42 +839,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     onLongPress: () {
                       _startMovingItem(item);
                     },
-                    child: Image.asset(
-                      _getItemIconFromName(item['item_name']),
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.image,
-                              size: 40, color: Colors.grey),
-                        );
-                      },
-                    ),
+                    child: _buildItemImage(item),
                   ),
                 )),
 
+            // Перетаскиваемый
             if (_isMovingItem && _movingItem != null && _tempPosition != null)
               Positioned(
                 left: _tempPosition!.dx,
                 top: _tempPosition!.dy,
                 child: Opacity(
                   opacity: 0.7,
-                  child: Image.asset(
-                    _getItemIconFromName(_movingItem!['item_name']),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                  ),
+                  child: _buildItemImage(_movingItem!),
                 ),
               ),
 
+            // Размещаемый из коллекции
             if (_isPlacingItem &&
                 _selectedItem != null &&
                 _tempPosition != null)
@@ -840,24 +863,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 top: _tempPosition!.dy,
                 child: Opacity(
                   opacity: 0.7,
-                  child: Image.asset(
-                    _getItemIconFromName(_getItemName(_selectedItem!)),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.image,
-                            size: 40, color: Colors.grey),
-                      );
-                    },
-                  ),
+                  child: _buildItemImage(_selectedItem!),
                 ),
               ),
 

@@ -41,7 +41,8 @@ class ItemsService {
     }
   }
 
-  Future<bool> placeItem(int itemId, double x, double y) async {
+  /// Разместить предмет. itemId теперь строка (UUID с бэка).
+  Future<bool> placeItem(String itemId, double x, double y) async {
     try {
       final headers = await _getHeaders();
       final response = await HttpInterceptor.post(
@@ -55,6 +56,7 @@ class ItemsService {
       );
 
       print('Размещение предмета - Status: ${response.statusCode}');
+      print('Ответ: ${response.body}');
 
       if (response.statusCode == 200) {
         print('Предмет размещён успешно');
@@ -88,7 +90,8 @@ class ItemsService {
     }
   }
 
-  Future<bool> removePlacedItem(int positionId) async {
+  /// Убрать предмет. positionId теперь строка (UUID с бэка).
+  Future<bool> removePlacedItem(String positionId) async {
     try {
       final headers = await _getHeaders();
       final response = await HttpInterceptor.delete(
