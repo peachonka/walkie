@@ -1,5 +1,3 @@
-// src/controllers/itemPositionController.js
-
 const db = require('../lib/db');
 
 // ============================================================
@@ -17,11 +15,12 @@ async function getAllItemPositions(req, res) {
     const result = await db.query(`
       SELECT
         ip.id,
-        ip.x,
-        ip.y,
-        i.id AS item_id,
+        ip.x::float8 AS x,
+        ip.y::float8 AS y,
+        i.id   AS item_id,
         i.name AS item_name,
-        i.icon AS item_icon
+        i.icon AS item_icon,
+        i.scale
       FROM item_position ip
       JOIN items i
         ON ip.item_id = i.id
@@ -35,8 +34,9 @@ async function getAllItemPositions(req, res) {
         item_id: p.item_id,
         item_name: p.item_name,
         item_icon: p.item_icon,
-        x: p.x,
-        y: p.y
+        x: Number(p.x),
+        y: Number(p.y),
+        scale: p.scale == null ? 1.0 : Number(p.scale)
       }))
     });
 
@@ -63,7 +63,7 @@ async function upsertItemPosition(req, res) {
 
     // 1. Проверяем, что предмет существует
     const itemResult = await db.query(`
-      SELECT id, name, icon
+      SELECT id, name, icon, scale
       FROM items
       WHERE id = $1
     `, [item_id]);
@@ -104,7 +104,7 @@ async function upsertItemPosition(req, res) {
       DO UPDATE SET
         x = EXCLUDED.x,
         y = EXCLUDED.y
-      RETURNING id, x, y
+      RETURNING id, x::float8 AS x, y::float8 AS y
     `, [userId, item_id, x, y]);
 
     const position = positionResult.rows[0];
@@ -116,8 +116,9 @@ async function upsertItemPosition(req, res) {
         item_id,
         item_name: item.name,
         item_icon: item.icon,
-        x: position.x,
-        y: position.y
+        x: Number(position.x),
+        y: Number(position.y),
+        scale: item.scale == null ? 1.0 : Number(item.scale)
       }
     });
 
@@ -168,7 +169,10 @@ async function getPositionByItemId(req, res) {
     const itemId = parseInt(req.params.itemId);
 
     const result = await db.query(`
-      SELECT id, x, y
+      SELECT
+        id,
+        x::float8 AS x,
+        y::float8 AS y
       FROM item_position
       WHERE user_id = $1
         AND item_id = $2
@@ -184,7 +188,11 @@ async function getPositionByItemId(req, res) {
 
     res.json({
       is_placed: true,
-      position: result.rows[0]
+      position: {
+        id: result.rows[0].id,
+        x: Number(result.rows[0].x),
+        y: Number(result.rows[0].y)
+      }
     });
 
   } catch (error) {

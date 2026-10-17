@@ -80,6 +80,12 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
   }
 
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
   Future<void> _loadPlacedItems() async {
     final items = await _itemsService.getPlacedItems();
     print('=== Загруженные placedItems: $items');
@@ -351,26 +357,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startPlacingItem(Map<String, dynamic> item) {
-    setState(() {
-      _selectedItem = item;
-      _isPlacingItem = true;
-      _isMovingItem = false;
-      _movingItem = null;
-      _tempPosition = const Offset(300, 300);
-    });
-  }
+  setState(() {
+    _selectedItem = item;
+    _isPlacingItem = true;
+    _isMovingItem = false;
+    _movingItem = null;
+    _tempPosition = const Offset(300, 300); 
+  });
+}
 
-  void _startMovingItem(Map<String, dynamic> item,
-      {bool fromCollection = false}) {
-    setState(() {
-      _movingItem = item;
-      _isMovingItem = true;
-      _isPlacingItem = false;
-      _selectedItem = null;
-      _tempPosition = Offset(item['x'], item['y']);
-      _itemSelectedFromCollection = fromCollection;
-    });
-  }
+  void _startMovingItem(Map<String, dynamic> item, {bool fromCollection = false}) {
+  final x = _toDouble(item['x']) ?? 300.0;
+  final y = _toDouble(item['y']) ?? 300.0;
+
+  setState(() {
+    _movingItem = item;
+    _isMovingItem = true;
+    _isPlacingItem = false;
+    _selectedItem = null;
+    _tempPosition = Offset(x, y);
+    _itemSelectedFromCollection = fromCollection;
+  });
+}
 
   void _removeItemFromScreen() async {
     if (_movingItem == null) return;
@@ -425,12 +433,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// ID предмета теперь строка (UUID с бэка).
   String? _getItemId(Map<String, dynamic> item) {
-    final v = item['item_id'] ?? item['id'];
-    if (v == null) return null;
-    final s = v.toString();
-    return s.isEmpty ? null : s;
-  }
+    // 1) item_id — если есть и непустой
+    final iid = item['item_id'];
+    if (iid != null && iid.toString().isNotEmpty) {
+      return iid.toString();
+    }
 
+    // 2) id — если есть и непустой (в объектах из коллекции id = id предмета)
+    final id = item['id'];
+    if (id != null && id.toString().isNotEmpty) {
+      return id.toString();
+    }
+
+    return null;
+  }
+  
   void _onScreenTap(TapDownDetails details) {
     final screenHeight = MediaQuery.of(context).size.height;
     if (details.localPosition.dy > screenHeight - 100) {
@@ -467,35 +484,30 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final success = await _itemsService.placeItem(
+    final placed = await _itemsService.placeItem(
       itemId,
       _tempPosition!.dx,
       _tempPosition!.dy,
     );
 
-    if (success && mounted) {
-      if (_isMovingItem && _movingItem != null) {
-        setState(() {
+    if (placed != null && mounted) {
+      setState(() {
+        if (_isMovingItem && _movingItem != null) {
+          // заменяем существующий объект на свежий с сервера
           final index = _placedItems.indexWhere(
-              (p) => _getItemId(p) == itemId);
+            (p) => p['id']?.toString() == placed['id']?.toString(),
+          );
           if (index != -1) {
-            _placedItems[index] = {
-              ..._placedItems[index],
-              'x': _tempPosition!.dx,
-              'y': _tempPosition!.dy,
-            };
+            _placedItems[index] = placed;
+          } else {
+            // на всякий случай, если не нашли — добавим
+            _placedItems.add(placed);
           }
-        });
-      } else {
-        setState(() {
-          _placedItems.add({
-            'item_id': itemId,
-            'item_name': itemName,
-            'x': _tempPosition!.dx,
-            'y': _tempPosition!.dy,
-          });
-        });
-      }
+        } else {
+          // новый предмет — добавляем целиком то, что вернул сервер
+          _placedItems.add(placed);
+        }
+      });
       _resetPlacingMode();
     } else {
       _resetPlacingMode();
@@ -730,6 +742,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String _getItemIconFromName(String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('очк')) return 'assets/images/items/sunglasses.png';
+    if (lowerName.contains('клуб')) return 'assets/images/items/clubok.png';
+    if (lowerName.contains('мор')) return 'assets/images/items/carrot.png';
+    if (lowerName.contains('газ')) return 'assets/images/items/can.png';
+    if (lowerName.contains('шля')) return 'assets/images/items/hat.png';
+    if (lowerName.contains('раст')) return 'assets/images/items/plant.png';
+    if (lowerName.contains('полк')) return 'assets/images/items/shelf.png';
+    if (lowerName.contains('диван')) return 'assets/images/items/sofa.png';
     if (lowerName.contains('миск')) return 'assets/images/items/bowl.png';
     if (lowerName.contains('ков')) return 'assets/images/items/carpet.png';
     return 'assets/images/items/sunglasses.png';
@@ -828,20 +847,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // Размещённые предметы
-            ..._placedItems.where((item) =>
-                !(_isMovingItem &&
-                    _movingItem != null &&
-                    _getItemId(item) == _getItemId(_movingItem!))).map((item) =>
-                Positioned(
-                  left: item['x'],
-                  top: item['y'],
-                  child: GestureDetector(
-                    onLongPress: () {
-                      _startMovingItem(item);
-                    },
-                    child: _buildItemImage(item),
-                  ),
-                )),
+            ..._placedItems
+                .where((item) =>
+                    !(_isMovingItem &&
+                        _movingItem != null &&
+                        _getItemId(item) == _getItemId(_movingItem!)))
+                .map<Widget>((item) {
+              final x = (item['x'] as num?)?.toDouble();
+              final y = (item['y'] as num?)?.toDouble();
+              if (x == null || y == null) {
+                debugPrint('!! Пропускаем предмет с битыми координатами: $item');
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                left: x,
+                top: y,
+                child: GestureDetector(
+                  onLongPress: () => _startMovingItem(item),
+                  child: _buildItemImage(item),
+                ),
+              );
+            }),
 
             // Перетаскиваемый
             if (_isMovingItem && _movingItem != null && _tempPosition != null)

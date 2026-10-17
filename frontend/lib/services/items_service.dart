@@ -42,7 +42,13 @@ class ItemsService {
   }
 
   /// Разместить предмет. itemId теперь строка (UUID с бэка).
-  Future<bool> placeItem(String itemId, double x, double y) async {
+  /// Разместить предмет. Возвращает полный объект позиции с сервера
+  /// (id, item_id, item_name, item_icon, x, y) или null при ошибке.
+  Future<Map<String, dynamic>?> placeItem(
+    String itemId,
+    double x,
+    double y,
+  ) async {
     try {
       final headers = await _getHeaders();
       final response = await HttpInterceptor.post(
@@ -59,15 +65,16 @@ class ItemsService {
       print('Ответ: ${response.body}');
 
       if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
         print('Предмет размещён успешно');
-        return true;
+        return data['position'] as Map<String, dynamic>?;
       } else {
         print('Ошибка размещения: ${response.body}');
-        return false;
+        return null;
       }
     } catch (e) {
       print('Ошибка при размещении предмета: $e');
-      return false;
+      return null;
     }
   }
 
