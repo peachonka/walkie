@@ -20,6 +20,8 @@ class _CollectionModalState extends State<CollectionModal> {
   List<Map<String, dynamic>> _items = [];
   String? _error;
 
+  static const String baseUrl = 'http://157.22.192.92:3000';
+
   @override
   void initState() {
     super.initState();
@@ -31,32 +33,56 @@ class _CollectionModalState extends State<CollectionModal> {
       _isLoading = true;
       _error = null;
     });
-    
+
     try {
       final items = await _itemsService.getUserItems();
-      
+
       if (items.isEmpty) {
         setState(() {
           _items = [];
           _isLoading = false;
         });
-      } else {
-        final List<Map<String, dynamic>> formattedItems = [];
-        for (var userItem in items) {
-          final itemData = userItem['item'];
-          formattedItems.add({
-            'user_item_id': userItem['id'],
-            'id': itemData['id'],
-            'name': itemData['name'],
-            'icon': itemData['icon'],
-          });
-        }
-        setState(() {
-          _items = formattedItems;
-          _isLoading = false;
-        });
+        return;
       }
+
+      // Группируем по item_id (или по name+icon, если item_id нет)
+      // Один item_id → одна карточка, в которой хранится count экземпляров.
+      final Map<String, Map<String, dynamic>> grouped = {};
+
+      for (var userItem in items) {
+        final itemData = userItem['item'];
+        final itemId = itemData['id']?.toString() ?? '';
+        final itemName = itemData['name'] ?? 'Предмет';
+        final itemIcon = itemData['icon'];
+
+        final key = itemId.isNotEmpty ? itemId : '$itemName|$itemIcon';
+
+        if (grouped.containsKey(key)) {
+          grouped[key]!['count'] = (grouped[key]!['count'] as int) + 1;
+        } else {
+          grouped[key] = {
+            'id': itemId,
+            'name': itemName,
+            'icon': itemIcon,
+            'count': 1,
+          };
+        }
+      }
+
+      final List<Map<String, dynamic>> formattedItems = grouped.values.toList();
+
+      print('=== CollectionModal: загружено ${items.length} записей, '
+          'уникальных предметов: ${formattedItems.length}');
+      for (var it in formattedItems) {
+        print('=== item: name=${it['name']}, id=${it['id']}, count=${it['count']}, icon=${it['icon']}');
+      }
+
+      setState(() {
+        _items = formattedItems;
+        _isLoading = false;
+      });
     } catch (e) {
+      print('=== Ошибка CollectionModal._loadItems: $e');
       setState(() {
         _error = 'Не удалось загрузить данные';
         _isLoading = false;
@@ -109,7 +135,6 @@ class _CollectionModalState extends State<CollectionModal> {
               const SizedBox(height: 16),
               const Divider(color: AppTheme.primaryColor),
               const SizedBox(height: 16),
-              
               Expanded(
                 child: SingleChildScrollView(
                   child: _buildContent(),
@@ -180,7 +205,6 @@ class _CollectionModalState extends State<CollectionModal> {
       );
     }
 
-    // Используем GridView.builder для отображения 4 предметов в ряду
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -199,8 +223,8 @@ class _CollectionModalState extends State<CollectionModal> {
 
   Widget _buildItemCard(Map<String, dynamic> item) {
     final itemName = item['name'] ?? 'Предмет';
-    final iconPath = _getIconPath(item);
-    
+    final count = item['count'] as int? ?? 1;
+
     return GestureDetector(
       onTap: () => _onItemTap(item),
       child: Container(
@@ -210,59 +234,153 @@ class _CollectionModalState extends State<CollectionModal> {
           color: AppTheme.secondaryColor.withOpacity(0.3),
           border: Border.all(color: AppTheme.primaryColor, width: 1),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Image.asset(
-              iconPath,
-              height: 50,
-              width: 50,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 50,
-                  width: 50,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildItemImage(item, size: 50),
+                const SizedBox(height: 8),
+                Text(
+                  itemName,
+                  style: const TextStyle(
+                    fontFamily: 'Pangolin',
+                    fontSize: 12,
+                    color: AppTheme.primaryColor,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            // Бейдж количества
+            if (count > 1)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.primaryColor,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.inventory,
-                    size: 30,
-                    color: Colors.grey,
+                  child: Text(
+                    'x$count',
+                    style: const TextStyle(
+                      fontFamily: 'Pangolin',
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            Text(
-              itemName,
-              style: const TextStyle(
-                fontFamily: 'Pangolin',
-                fontSize: 12,
-                color: AppTheme.primaryColor,
+                ),
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
         ),
       ),
     );
   }
 
-  String _getIconPath(Map<String, dynamic> item) {
-    final name = (item['name'] ?? '').toLowerCase();
-    
-    if (name.contains('очк')) return 'assets/images/items/sunglasses.png';
-    if (name.contains('миск')) return 'assets/images/items/bowl.png';
-    if (name.contains('ков')) return 'assets/images/items/carpet.png';
-    
-    if (item['icon'] != null && item['icon'].toString().isNotEmpty) {
-      return 'assets/images/items/${item['icon']}';
+  // ============================================================
+  // КАРТИНКИ ПРЕДМЕТОВ
+  // ============================================================
+
+  String _resolveItemIcon(Map<String, dynamic> item) {
+    final iconPath = item['icon'];
+
+    if (iconPath != null && iconPath.toString().isNotEmpty) {
+      final path = iconPath.toString();
+      if (path.startsWith('http')) return path;
+      if (path.startsWith('/')) return '$baseUrl$path';
+      return '$baseUrl/$path';
     }
-    
+
+    return _getItemIconFromName(item['name'] ?? '');
+  }
+
+  String _getItemIconFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('очк')) return 'assets/images/items/sunglasses.png';
+    if (lower.contains('миск')) return 'assets/images/items/bowl.png';
+    if (lower.contains('ков')) return 'assets/images/items/carpet.png';
     return 'assets/images/items/sunglasses.png';
+  }
+
+  Widget _buildItemImage(Map<String, dynamic> item, {double size = 50}) {
+    final iconPath = item['icon'];
+    final hasRemoteIcon = iconPath != null && iconPath.toString().isNotEmpty;
+
+    if (hasRemoteIcon) {
+      return Image.network(
+        _resolveItemIcon(item),
+        height: size,
+        width: size,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return SizedBox(
+            height: size,
+            width: size,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Image.asset(
+            _getItemIconFromName(item['name'] ?? ''),
+            height: size,
+            width: size,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error2, stackTrace2) {
+              return Container(
+                height: size,
+                width: size,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.inventory,
+                  size: size * 0.6,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+
+    return Image.asset(
+      _getItemIconFromName(item['name'] ?? ''),
+      height: size,
+      width: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          height: size,
+          width: size,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.inventory,
+            size: size * 0.6,
+            color: Colors.grey,
+          ),
+        );
+      },
+    );
   }
 }

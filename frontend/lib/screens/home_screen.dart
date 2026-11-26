@@ -80,8 +80,15 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
   }
 
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
   Future<void> _loadPlacedItems() async {
     final items = await _itemsService.getPlacedItems();
+    print('=== Загруженные placedItems: $items');
     setState(() {
       _placedItems = items;
     });
@@ -177,21 +184,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Восстановление активной прогулки при старте HomeScreen.
-  ///
-  /// Логика:
-  /// 1. Берём сохранённый walkId из SharedPreferences.
-  /// 2. Если он есть — показываем диалог с 3 кнопками:
-  ///    «Продолжить» — открываем WalkScreen.
-  ///    «Завершить сейчас» — принудительно завершаем через POST /walks/:id/end.
-  ///    «Отмена» — оставляем как есть (можно будет восстановить позже).
   Future<void> _checkAndRestoreActiveWalk() async {
     final savedId = await _walkService.getSavedActiveWalkId();
     if (savedId == null || !mounted) return;
 
     print('Восстановление: найдена сохранённая прогулка ID=$savedId');
 
-    // Даём кадру отрисоваться, чтобы диалог показался поверх UI
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
@@ -266,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (action == 'finish') {
-      // Принудительно завершаем прогулку
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -288,12 +285,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Не удалось завершить прогулку')),
           );
-          // Не удалилось — попробуем очистить локально, чтобы разблокировать старт
           await _walkService.clearSavedActiveWalk();
         }
       }
     }
-    // action == 'cancel' или null — ничего не делаем
   }
 
   Future<void> _updatePetName(String newName) async {
@@ -362,35 +357,42 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startPlacingItem(Map<String, dynamic> item) {
-    setState(() {
-      _selectedItem = item;
-      _isPlacingItem = true;
-      _isMovingItem = false;
-      _movingItem = null;
-      _tempPosition = const Offset(300, 300);
-    });
-  }
+  setState(() {
+    _selectedItem = item;
+    _isPlacingItem = true;
+    _isMovingItem = false;
+    _movingItem = null;
+    _tempPosition = const Offset(300, 300); 
+  });
+}
 
-  void _startMovingItem(Map<String, dynamic> item,
-      {bool fromCollection = false}) {
-    setState(() {
-      _movingItem = item;
-      _isMovingItem = true;
-      _isPlacingItem = false;
-      _selectedItem = null;
-      _tempPosition = Offset(item['x'], item['y']);
-      _itemSelectedFromCollection = fromCollection;
-    });
-  }
+  void _startMovingItem(Map<String, dynamic> item, {bool fromCollection = false}) {
+  final x = _toDouble(item['x']) ?? 300.0;
+  final y = _toDouble(item['y']) ?? 300.0;
+
+  setState(() {
+    _movingItem = item;
+    _isMovingItem = true;
+    _isPlacingItem = false;
+    _selectedItem = null;
+    _tempPosition = Offset(x, y);
+    _itemSelectedFromCollection = fromCollection;
+  });
+}
 
   void _removeItemFromScreen() async {
     if (_movingItem == null) return;
 
     final itemToRemove = _movingItem!;
     final itemName = itemToRemove['item_name'];
-    final positionId = itemToRemove['id'];
+    final positionId = itemToRemove['id']?.toString() ?? '';
 
     print('Убираем предмет с экрана: $itemName, positionId: $positionId');
+
+    if (positionId.isEmpty) {
+      print('!!! positionId пустой — не можем удалить');
+      return;
+    }
 
     showDialog(
       context: context,
@@ -409,7 +411,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (success && mounted) {
         setState(() {
-          _placedItems.removeWhere((p) => p['id'] == positionId);
+          _placedItems.removeWhere(
+              (p) => p['id']?.toString() == positionId);
           _isMovingItem = false;
           _movingItem = null;
           _tempPosition = null;
@@ -428,20 +431,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return item['name'] ?? item['item_name'] ?? 'Предмет';
   }
 
-  int? _getItemId(Map<String, dynamic> item) {
-    if (item['item_id'] != null) {
-      return item['item_id'] is int
-          ? item['item_id']
-          : int.tryParse(item['item_id'].toString());
+  /// ID предмета теперь строка (UUID с бэка).
+  String? _getItemId(Map<String, dynamic> item) {
+    // 1) item_id — если есть и непустой
+    final iid = item['item_id'];
+    if (iid != null && iid.toString().isNotEmpty) {
+      return iid.toString();
     }
-    if (item['id'] != null) {
-      return item['id'] is int
-          ? item['id']
-          : int.tryParse(item['id'].toString());
+
+    // 2) id — если есть и непустой (в объектах из коллекции id = id предмета)
+    final id = item['id'];
+    if (id != null && id.toString().isNotEmpty) {
+      return id.toString();
     }
+
     return null;
   }
-
+  
   void _onScreenTap(TapDownDetails details) {
     final screenHeight = MediaQuery.of(context).size.height;
     if (details.localPosition.dy > screenHeight - 100) {
@@ -458,12 +464,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _confirmPlacement() async {
     if (_tempPosition == null) return;
 
-    int? itemId;
+    String? itemId;
     String itemName;
 
     if (_isMovingItem && _movingItem != null) {
-      itemId = _movingItem!['item_id'];
-      itemName = _movingItem!['item_name'];
+      itemId = _getItemId(_movingItem!);
+      itemName = _movingItem!['item_name'] ?? _getItemName(_movingItem!);
     } else if (_isPlacingItem && _selectedItem != null) {
       itemId = _getItemId(_selectedItem!);
       itemName = _getItemName(_selectedItem!);
@@ -473,38 +479,35 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (itemId == null) {
+      print('!!! itemId пустой — не можем разместить');
       _resetPlacingMode();
       return;
     }
 
-    final success = await _itemsService.placeItem(
+    final placed = await _itemsService.placeItem(
       itemId,
       _tempPosition!.dx,
       _tempPosition!.dy,
     );
 
-    if (success && mounted) {
-      if (_isMovingItem && _movingItem != null) {
-        setState(() {
-          final index = _placedItems.indexWhere((p) => p['item_id'] == itemId);
+    if (placed != null && mounted) {
+      setState(() {
+        if (_isMovingItem && _movingItem != null) {
+          // заменяем существующий объект на свежий с сервера
+          final index = _placedItems.indexWhere(
+            (p) => p['id']?.toString() == placed['id']?.toString(),
+          );
           if (index != -1) {
-            _placedItems[index] = {
-              ..._placedItems[index],
-              'x': _tempPosition!.dx,
-              'y': _tempPosition!.dy,
-            };
+            _placedItems[index] = placed;
+          } else {
+            // на всякий случай, если не нашли — добавим
+            _placedItems.add(placed);
           }
-        });
-      } else {
-        setState(() {
-          _placedItems.add({
-            'item_id': itemId,
-            'item_name': itemName,
-            'x': _tempPosition!.dx,
-            'y': _tempPosition!.dy,
-          });
-        });
-      }
+        } else {
+          // новый предмет — добавляем целиком то, что вернул сервер
+          _placedItems.add(placed);
+        }
+      });
       _resetPlacingMode();
     } else {
       _resetPlacingMode();
@@ -692,8 +695,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-      // Если есть активная прогулка — принудительно завершим её,
-      // чтобы пользователь не «застрял» на бэке
       try {
         final savedId = await _walkService.getSavedActiveWalkId();
         if (savedId != null) {
@@ -721,12 +722,71 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ============================================================
+  // КАРТИНКИ ПРЕДМЕТОВ
+  // ============================================================
+
+  String _resolveItemIcon(Map<String, dynamic> item) {
+    final iconPath = item['item_icon'] ?? item['icon'];
+
+    if (iconPath != null && iconPath.toString().isNotEmpty) {
+      final path = iconPath.toString();
+      if (path.startsWith('http')) return path;
+      if (path.startsWith('/')) return '$baseUrl$path';
+      return '$baseUrl/$path';
+    }
+
+    return _getItemIconFromName(item['item_name'] ?? '');
+  }
+
   String _getItemIconFromName(String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('очк')) return 'assets/images/items/sunglasses.png';
+    if (lowerName.contains('клуб')) return 'assets/images/items/clubok.png';
+    if (lowerName.contains('мор')) return 'assets/images/items/carrot.png';
+    if (lowerName.contains('газ')) return 'assets/images/items/can.png';
+    if (lowerName.contains('шля')) return 'assets/images/items/hat.png';
+    if (lowerName.contains('раст')) return 'assets/images/items/plant.png';
+    if (lowerName.contains('полк')) return 'assets/images/items/shelf.png';
+    if (lowerName.contains('диван')) return 'assets/images/items/sofa.png';
     if (lowerName.contains('миск')) return 'assets/images/items/bowl.png';
     if (lowerName.contains('ков')) return 'assets/images/items/carpet.png';
     return 'assets/images/items/sunglasses.png';
+  }
+
+  Widget _buildItemImage(
+    Map<String, dynamic> item, {
+    double size = 80,
+  }) {
+    return Image.network(
+      _resolveItemIcon(item),
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Image.asset(
+          _getItemIconFromName(item['item_name'] ?? ''),
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error2, stackTrace2) {
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.image,
+                size: size / 2,
+                color: Colors.grey,
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   String _resolveImageUrl(String? path) {
@@ -749,6 +809,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // Питомец
             Center(
               child: _petAvatar != null && _petAvatar!.isNotEmpty
                   ? Image.network(
@@ -785,53 +846,41 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
 
-            ..._placedItems.where((item) =>
-                !(_isMovingItem &&
-                    _movingItem != null &&
-                    item['item_id'] == _movingItem!['item_id'])).map((item) =>
-                Positioned(
-                  left: item['x'],
-                  top: item['y'],
-                  child: GestureDetector(
-                    onLongPress: () {
-                      _startMovingItem(item);
-                    },
-                    child: Image.asset(
-                      _getItemIconFromName(item['item_name']),
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.image,
-                              size: 40, color: Colors.grey),
-                        );
-                      },
-                    ),
-                  ),
-                )),
+            // Размещённые предметы
+            ..._placedItems
+                .where((item) =>
+                    !(_isMovingItem &&
+                        _movingItem != null &&
+                        _getItemId(item) == _getItemId(_movingItem!)))
+                .map<Widget>((item) {
+              final x = (item['x'] as num?)?.toDouble();
+              final y = (item['y'] as num?)?.toDouble();
+              if (x == null || y == null) {
+                debugPrint('!! Пропускаем предмет с битыми координатами: $item');
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                left: x,
+                top: y,
+                child: GestureDetector(
+                  onLongPress: () => _startMovingItem(item),
+                  child: _buildItemImage(item),
+                ),
+              );
+            }),
 
+            // Перетаскиваемый
             if (_isMovingItem && _movingItem != null && _tempPosition != null)
               Positioned(
                 left: _tempPosition!.dx,
                 top: _tempPosition!.dy,
                 child: Opacity(
                   opacity: 0.7,
-                  child: Image.asset(
-                    _getItemIconFromName(_movingItem!['item_name']),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                  ),
+                  child: _buildItemImage(_movingItem!),
                 ),
               ),
 
+            // Размещаемый из коллекции
             if (_isPlacingItem &&
                 _selectedItem != null &&
                 _tempPosition != null)
@@ -840,24 +889,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 top: _tempPosition!.dy,
                 child: Opacity(
                   opacity: 0.7,
-                  child: Image.asset(
-                    _getItemIconFromName(_getItemName(_selectedItem!)),
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.image,
-                            size: 40, color: Colors.grey),
-                      );
-                    },
-                  ),
+                  child: _buildItemImage(_selectedItem!),
                 ),
               ),
 
