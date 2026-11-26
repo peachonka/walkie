@@ -275,8 +275,60 @@ async function checkAchievements(userId, client = db) {
   return newAchievements;
 }
 
+/**
+ * Начисление опыта питомцу за прогулку
+ */
+async function updatePetExp(userId, distance, client = db) {
+  // 1. Рассчитываем опыт за прогулку
+  const earnedExp = Math.floor(distance / 100);
+
+  if (earnedExp <= 0) {
+    return null;
+  }
+
+  // 2. Получаем питомца пользователя
+  const petResult = await client.query(`
+    SELECT *
+    FROM user_pet
+    WHERE user_id = $1
+    FOR UPDATE
+  `, [userId]);
+
+  if (petResult.rows.length === 0) {
+    return null;
+  }
+
+  const pet = petResult.rows[0];
+
+  // 3. Начисляем опыт
+  let exp = pet.exp + earnedExp;
+  let level = pet.level;
+
+  // 4. Проверяем повышение уровня
+  while (exp >= 100) {
+    exp -= 100;
+    level += 1;
+  }
+
+  // 5. Сохраняем изменения
+  const updateResult = await client.query(`
+    UPDATE user_pet
+    SET
+      exp = $1,
+      level = $2
+    WHERE id = $3
+    RETURNING *
+  `, [exp, level, pet.id]);
+
+  return {
+    ...updateResult.rows[0],
+    earned_exp: earnedExp
+  };
+}
+
 module.exports = {
   generateDrops,
   updateUserStats,
-  checkAchievements
+  checkAchievements,
+  updatePetExp
 };

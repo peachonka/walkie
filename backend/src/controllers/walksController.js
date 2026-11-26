@@ -1,7 +1,8 @@
 const {
   generateDrops,
   updateUserStats,
-  checkAchievements
+  checkAchievements,
+  updatePetExp
 } = require('../utils/walksLogic');
 
 const db = require('../lib/db');
@@ -151,7 +152,12 @@ async function endWalk(req, res) {
         ]);
       }
     }
-
+    // 7. Начисляем опыт питомцу
+    const petUpdate = await updatePetExp(
+      userId,
+      distance,
+      client
+    );
     // 7. Обновляем user_stats
     await updateUserStats(userId, client);
 
@@ -216,7 +222,8 @@ async function endWalk(req, res) {
       duration,
       steps,
       items_collected: itemsData,
-      new_achievements: newAchievements || []
+      new_achievements: newAchievements || [],
+      pet: petUpdate
     });
 
   } catch (error) {
