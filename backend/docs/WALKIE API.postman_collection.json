@@ -1,0 +1,714 @@
+{
+  "info": {
+    "_postman_id": "67b0efc8-98ff-4ead-948e-3fc4e04152cd",
+    "name": "WALKIE API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "43106333"
+  },
+  "item": [
+    {
+      "name": "Регистрация А",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Registration successful\", function () {\r\n    pm.response.to.have.status(201);\r\n});"
+            ]
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const email = \"walkie_test_\" + Date.now() + \"@example.com\";\r\n\r\npm.environment.set(\"email\", email);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"{{email}}\",\r\n  \"password\": \"{{password}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Повторная Регистрация",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Duplicate registration returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"{{email}}\",\r\n  \"password\": \"{{password}}\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Авторизация А",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Login returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Token is present\", function () {\r\n    pm.expect(response.token).to.be.a(\"string\");\r\n    pm.expect(response.token).to.not.be.empty;\r\n});\r\n\r\nif (response.token) {\r\n    pm.environment.set(\"token\", response.token);\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"{{email}}\", \"password\": \"{{password}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Авторизация Б",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Login returns 200\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Token is present\", function () {\r\n    pm.expect(response.token).to.be.a(\"string\");\r\n    pm.expect(response.token).to.not.be.empty;\r\n});\r\n\r\nif (response.token) {\r\n    pm.environment.set(\"secondToken\", response.token);\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"{{secondEmail}}\", \"password\": \"{{secondPassword}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Создание питомца",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Pet created with status 201\", function () {\r\n    pm.response.to.have.status(201);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Success flag is true\", function () {\r\n    pm.expect(response.success).to.eql(true);\r\n});\r\n\r\npm.test(\"Pet object is returned\", function () {\r\n    pm.expect(response.pet).to.be.an(\"object\");\r\n});\r\n\r\npm.test(\"Pet has required fields\", function () {\r\n    pm.expect(response.pet).to.have.property(\"id\");\r\n    pm.expect(response.pet).to.have.property(\"user_id\");\r\n    pm.expect(response.pet).to.have.property(\"pet_id\");\r\n    pm.expect(response.pet).to.have.property(\"name\");\r\n    pm.expect(response.pet).to.have.property(\"level\");\r\n    pm.expect(response.pet).to.have.property(\"exp\");\r\n});\r\n\r\npm.test(\"Pet starts at level 1 with 0 exp\", function () {\r\n    pm.expect(response.pet.level).to.eql(1);\r\n    pm.expect(response.pet.exp).to.eql(0);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"name\": \"Волчонок\",\r\n    \"petId\": 1\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/pet",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "pet"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Переименовать питомца",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Pet renamed successfully\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Success flag is true\", function () {\r\n    pm.expect(response.success).to.eql(true);\r\n});\r\n\r\npm.test(\"New name is returned\", function () {\r\n    pm.expect(response.new_name).to.be.a(\"string\");\r\n    pm.expect(response.new_name).to.not.be.empty;\r\n});\r\n"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"name\": \"Дейли\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/pet/name",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "pet",
+            "name"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Неавтор статистика",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Unauthorized stats request returns 401\", function () {\r\n    pm.response.to.have.status(401);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/stats",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "stats"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Старт прогулки А",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Walk started successfully\", function () {\r\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Walk ID is returned\", function () {\r\n    pm.expect(response.walk_id).to.exist;\r\n});\r\n\r\npm.test(\"Start time is returned\", function () {\r\n    pm.expect(response.start_time).to.exist;\r\n});\r\n\r\nif (response.walk_id) {\r\n    pm.environment.set(\"walkId\", response.walk_id);\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/start",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "start"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Повтор старт прогулки А",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Second walk start returns 409\", function () {\r\n    pm.response.to.have.status(409);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Error message is returned\", function () {\r\n    pm.expect(response.error).to.eql(\r\n        \"Active walk already exists\"\r\n    );\r\n});\r\n\r\npm.test(\"Active walk ID is returned\", function () {\r\n    pm.expect(response.walkId).to.exist;\r\n});\r\n\r\npm.test(\"Active walk ID matches the first walk\", function () {\r\n    pm.expect(String(response.walkId)).to.eql(\r\n        String(pm.environment.get(\"walkId\"))\r\n    );\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/start",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "start"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Старт прогулки Б",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Walk started successfully\", function () {\r\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Walk ID is returned\", function () {\r\n    pm.expect(response.walk_id).to.exist;\r\n});\r\n\r\npm.test(\"Start time is returned\", function () {\r\n    pm.expect(response.start_time).to.exist;\r\n});\r\n\r\nif (response.walk_id) {\r\n    pm.environment.set(\"secondWalkId\", response.walk_id);\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{secondToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "text"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/start",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "start"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Стоп чужой прогулки",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Cannot finish another user's walk\", function () {\r\n    pm.response.to.have.status(404);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"distance\": 1000,\r\n    \"duration\": 2400,\r\n    \"steps\": 1000\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/{{secondWalkId}}/end",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "{{secondWalkId}}",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Стоп прогулки A",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Walk completed successfully\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Walk ID is returned\", function () {\r\n    pm.expect(response.walk_id).to.exist;\r\n});\r\n\r\npm.test(\"Walk ID matches requested ID\", function () {\r\n    pm.expect(String(response.walk_id)).to.eql(\r\n        String(pm.environment.get(\"walkId\"))\r\n    );\r\n});\r\n\r\npm.test(\"Distance is returned\", function () {\r\n    pm.expect(response.distance).to.exist;\r\n});\r\n\r\npm.test(\"Duration is returned\", function () {\r\n    pm.expect(response.duration).to.exist;\r\n});\r\n\r\npm.test(\"Steps are returned\", function () {\r\n    pm.expect(response.steps).to.exist;\r\n});\r\n\r\npm.test(\"Items array is returned\", function () {\r\n    pm.expect(response.items_collected).to.be.an(\"array\");\r\n});\r\n\r\npm.test(\"Achievements array is returned\", function () {\r\n    pm.expect(response.new_achievements).to.be.an(\"array\");\r\n});\r\n\r\npm.test(\"Pet information is returned\", function () {\r\n    pm.expect(response.pet).to.exist;\r\n});\r\n\r\nif (response.pet) {\r\n    pm.test(\"Pet received experience\", function () {\r\n        pm.expect(response.pet.earned_exp).to.be.above(0);\r\n    });\r\n\r\n    pm.test(\"Pet level and exp are returned\", function () {\r\n        pm.expect(response.pet).to.have.property(\"level\");\r\n        pm.expect(response.pet).to.have.property(\"exp\");\r\n    });\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"distance\": 1000,\r\n    \"duration\": 2400,\r\n    \"steps\": 1000\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/{{walkId}}/end",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "{{walkId}}",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Повтор Стоп прогулки A",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Repeated walk completion returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"distance\": 1000,\r\n    \"duration\": 2400,\r\n    \"steps\": 1000\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/{{walkId}}/end",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "{{walkId}}",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Некорректный Стоп прогулки Б",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Invalid walk data returns 400\", function () {\r\n    pm.response.to.have.status(400);\r\n});\r\n\r\npm.test(\"Error message is returned\", function () {\r\n    const response = pm.response.json();\r\n\r\n    pm.expect(response.error).to.be.a(\"string\");\r\n    pm.expect(response.error).to.not.be.empty;\r\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{secondToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"distance\":150000,\"duration\":600,\"steps\":1000}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/walks/{{secondWalkId}}/end",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "walks",
+            "{{secondWalkId}}",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Статистика",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Stats retrieved successfully\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/stats/daily",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "stats",
+            "daily"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Питомец",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Pet retrieved successfully\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\npm.test(\"Pet has required fields\", function () {\r\n    pm.expect(response).to.have.property(\"id\");\r\n    pm.expect(response).to.have.property(\"name\");\r\n    pm.expect(response).to.have.property(\"type\");\r\n    pm.expect(response).to.have.property(\"avatar\");\r\n    pm.expect(response).to.have.property(\"level\");\r\n    pm.expect(response).to.have.property(\"exp\");\r\n    pm.expect(response).to.have.property(\"exp_to_next_level\");\r\n});\r\n\r\npm.test(\"Pet level is positive\", function () {\r\n    pm.expect(response.level).to.be.above(0);\r\n});\r\n\r\npm.test(\"Pet experience is non-negative\", function () {\r\n    pm.expect(response.exp).to.be.at.least(0);\r\n});\r\n\r\npm.test(\"Experience threshold is positive\", function () {\r\n    pm.expect(response.exp_to_next_level).to.be.above(0);\r\n});"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/pet",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "pet"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Предметы",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Items retrieved successfully\", function () {\r\n    pm.response.to.have.status(200);\r\n});\r\n\r\nconst response = pm.response.json();\r\n\r\n\r\npm.test(\"Items is an array\", function () {\r\n    pm.expect(response.items).to.be.an(\"array\");\r\n});\r\n\r\n\r\n"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/items/collected",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "items",
+            "collected"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "bearer_token_00nx",
+      "secret": true
+    },
+    {
+      "key": "json_web_token_0unf",
+      "secret": true
+    },
+    {
+      "key": "bearer_token_0nid",
+      "secret": true
+    }
+  ]
+}
