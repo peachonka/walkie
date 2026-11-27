@@ -4,6 +4,7 @@ const {
   checkAchievements,
   updatePetExp
 } = require('../utils/walksLogic');
+const validateWalkData = require('../utils/validateWalkData');
 
 const db = require('../lib/db');
 
@@ -74,6 +75,18 @@ async function endWalk(req, res) {
     const walkId = parseInt(req.params.walkId);
 
     const { distance, duration, steps } = req.body;
+
+    const validationError = validateWalkData(
+      distance,
+      duration,
+      steps
+    );
+
+    if (validationError) {
+      return res.status(400).json({
+        error: validationError
+      });
+    }
 
     // 1. Получаем подключение
     client = await db.connect();
