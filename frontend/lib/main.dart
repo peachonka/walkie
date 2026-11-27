@@ -6,10 +6,17 @@ import 'services/http_interceptor.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setPreferredOrientations([
+  // Альбомная ориентация больше не нужна здесь — оставляем портретную
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Иммерсивный режим для всего приложения:
+  // панели скрыты, но появляются по свайпу и сами исчезают.
+  await SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.immersiveSticky,
+  );
 
   runApp(const MyApp());
 }
