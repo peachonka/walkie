@@ -1,7 +1,8 @@
 const {
   generateDrops,
   updateUserStats,
-  checkAchievements
+  checkAchievements,
+  updatePetExp
 } = require('../utils/walksLogic');
 
 const db = require('../lib/db');
@@ -65,21 +66,35 @@ async function startWalk(req, res) {
  * POST /api/walks/:walkId/end
  */
 async function endWalk(req, res) {
+  let client;
+  let transactionStarted = false;
+
   try {
     const userId = req.userId;
     const walkId = parseInt(req.params.walkId);
 
     const { distance, duration, steps } = req.body;
 
-    // 1. Получаем прогулку
-    const walkResult = await db.query(`
+    // 1. Получаем подключение
+    client = await db.connect();
+
+    // 2. Начинаем транзакцию
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    // 3. Получаем прогулку и блокируем её
+    const walkResult = await client.query(`
       SELECT *
       FROM walk
       WHERE id = $1
         AND user_id = $2
+      FOR UPDATE
     `, [walkId, userId]);
 
     if (walkResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+
       return res.status(404).json({
         error: 'Walk not found'
       });
@@ -88,15 +103,18 @@ async function endWalk(req, res) {
     const walk = walkResult.rows[0];
 
     if (walk.end_time) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+
       return res.status(400).json({
         error: 'Walk already finished'
       });
     }
 
-    // 2. Закрываем прогулку
+    // 4. Закрываем прогулку
     const endTime = new Date().toISOString();
 
-    const updateResult = await db.query(`
+    const updateResult = await client.query(`
       UPDATE walk
       SET
         end_time = $1,
@@ -113,13 +131,14 @@ async function endWalk(req, res) {
       walkId
     ]);
 
-    // 3. Генерация предметов
-    const droppedItems = await generateDrops(duration);
+    // 5. Генерация предметов
+    const droppedItems =
+      await generateDrops(duration, client);
 
-    // 4. Сохраняем предметы
+    // 6. Сохраняем предметы
     if (droppedItems.length > 0) {
       for (const itemId of droppedItems) {
-        await db.query(`
+        await client.query(`
           INSERT INTO user_item (
             user_id,
             item_id,
@@ -133,15 +152,24 @@ async function endWalk(req, res) {
         ]);
       }
     }
+    // 7. Начисляем опыт питомцу
+    const petUpdate = await updatePetExp(
+      userId,
+      distance,
+      client
+    );
+    // 7. Обновляем user_stats
+    await updateUserStats(userId, client);
 
-    // 5. Обновляем user_stats
-    await updateUserStats(userId);
-
-    // 6. Достижения
+    // 8. Проверяем достижения
     const newAchievements =
-      await checkAchievements(userId);
+      await checkAchievements(userId, client);
 
-    // 7. Получение списка предметов
+    // 9. Подтверждаем транзакцию
+    await client.query('COMMIT');
+    transactionStarted = false;
+
+    // 10. Получаем список предметов для ответа
     let itemsData = [];
 
     if (droppedItems.length > 0) {
@@ -159,11 +187,12 @@ async function endWalk(req, res) {
         ...new Set(droppedItems)
       ];
 
-      // Получаем предметы
+      // Формируем placeholders
       const placeholders = uniqueIds
         .map((_, index) => `$${index + 1}`)
         .join(', ');
 
+      // Получаем предметы
       const itemsResult = await db.query(`
         SELECT
           i.id,
@@ -186,21 +215,44 @@ async function endWalk(req, res) {
       }));
     }
 
+    // 11. Отправляем ответ
     res.json({
       walk_id: walkId,
       distance,
       duration,
       steps,
       items_collected: itemsData,
-      new_achievements: newAchievements || []
+      new_achievements: newAchievements || [],
+      pet: petUpdate
     });
 
   } catch (error) {
+
+    // 12. Откатываем транзакцию при ошибке
+    if (client && transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+      } catch (rollbackError) {
+        console.error(
+          'Rollback error:',
+          rollbackError
+        );
+      }
+    }
+
     console.error(error);
 
     res.status(500).json({
       error: error.message
     });
+
+  } finally {
+
+    // 13. Освобождаем подключение
+    if (client) {
+      client.release();
+    }
   }
 }
 

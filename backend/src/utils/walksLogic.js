@@ -24,7 +24,7 @@ function pickRarity(rarities) {
 // Генерация предметов за прогулку
 // ============================================================
 
-async function generateDrops(duration) {
+async function generateDrops(duration, client=db) {
   const attempts = Math.floor(duration / 600);
 
   if (attempts <= 0) {
@@ -32,7 +32,7 @@ async function generateDrops(duration) {
   }
 
   // 1. Получаем редкости
-  const raritiesResult = await db.query(`
+  const raritiesResult = await client.query(`
     SELECT *
     FROM rarity
   `);
@@ -40,7 +40,7 @@ async function generateDrops(duration) {
   const rarities = raritiesResult.rows;
 
   // 2. Получаем все предметы
-  const itemsResult = await db.query(`
+  const itemsResult = await client.query(`
     SELECT id, rarity_id
     FROM items
   `);
@@ -87,9 +87,9 @@ async function generateDrops(duration) {
 // Обновление статистики пользователя
 // ============================================================
 
-async function updateUserStats(userId) {
+async function updateUserStats(userId, client = db) {
 
-  const result = await db.query(`
+  const result = await client.query(`
     SELECT
       distance,
       duration,
@@ -119,7 +119,7 @@ async function updateUserStats(userId) {
     0
   );
 
-  await db.query(`
+  await client.query(`
     INSERT INTO user_stats (
       user_id,
       total_distance,
@@ -147,10 +147,10 @@ async function updateUserStats(userId) {
 // Проверка достижений
 // ============================================================
 
-async function checkAchievements(userId) {
+async function checkAchievements(userId, client = db) {
 
   // 1. Получаем прогресс
-  const statsResult = await db.query(`
+  const statsResult = await client.query(`
     SELECT *
     FROM user_stats
     WHERE user_id = $1
@@ -164,7 +164,7 @@ async function checkAchievements(userId) {
   const stats = statsResult.rows[0];
 
   // 2. Получаем все достижения
-  const achievementsResult = await db.query(`
+  const achievementsResult = await client.query(`
     SELECT
       a.id,
       a.name,
@@ -184,7 +184,7 @@ async function checkAchievements(userId) {
 
   // 3. Получаем уже полученные
   const userAchievementsResult =
-    await db.query(`
+    await client.query(`
       SELECT achievement_id
       FROM user_achievement
       WHERE user_id = $1
@@ -255,7 +255,7 @@ async function checkAchievements(userId) {
     if (value >= nextAchievement.score) {
 
       // Выдаём достижение
-      await db.query(`
+      await client.query(`
         INSERT INTO user_achievement (
           user_id,
           achievement_id
@@ -275,8 +275,60 @@ async function checkAchievements(userId) {
   return newAchievements;
 }
 
+/**
+ * Начисление опыта питомцу за прогулку
+ */
+async function updatePetExp(userId, distance, client = db) {
+  // 1. Рассчитываем опыт за прогулку
+  const earnedExp = Math.floor(distance / 100);
+
+  if (earnedExp <= 0) {
+    return null;
+  }
+
+  // 2. Получаем питомца пользователя
+  const petResult = await client.query(`
+    SELECT *
+    FROM user_pet
+    WHERE user_id = $1
+    FOR UPDATE
+  `, [userId]);
+
+  if (petResult.rows.length === 0) {
+    return null;
+  }
+
+  const pet = petResult.rows[0];
+
+  // 3. Начисляем опыт
+  let exp = pet.exp + earnedExp;
+  let level = pet.level;
+
+  // 4. Проверяем повышение уровня
+  while (exp >= 100) {
+    exp -= 100;
+    level += 1;
+  }
+
+  // 5. Сохраняем изменения
+  const updateResult = await client.query(`
+    UPDATE user_pet
+    SET
+      exp = $1,
+      level = $2
+    WHERE id = $3
+    RETURNING *
+  `, [exp, level, pet.id]);
+
+  return {
+    ...updateResult.rows[0],
+    earned_exp: earnedExp
+  };
+}
+
 module.exports = {
   generateDrops,
   updateUserStats,
-  checkAchievements
+  checkAchievements,
+  updatePetExp
 };
