@@ -366,19 +366,20 @@ class _HomeScreenState extends State<HomeScreen> {
   });
 }
 
-  void _startMovingItem(Map<String, dynamic> item, {bool fromCollection = false}) {
-  final x = _toDouble(item['x']) ?? 300.0;
-  final y = _toDouble(item['y']) ?? 300.0;
+  void _startMovingItem(Map<String, dynamic> item,
+      {bool fromCollection = false}) {
+    final x = _toDouble(item['x']) ?? 300.0;
+    final y = _toDouble(item['y']) ?? 300.0;
 
-  setState(() {
-    _movingItem = item;
-    _isMovingItem = true;
-    _isPlacingItem = false;
-    _selectedItem = null;
-    _tempPosition = Offset(x, y);
-    _itemSelectedFromCollection = fromCollection;
-  });
-}
+    setState(() {
+      _movingItem = item;
+      _isMovingItem = true;
+      _isPlacingItem = false;
+      _selectedItem = null;
+      _tempPosition = Offset(x, y);
+      _itemSelectedFromCollection = fromCollection;
+    });
+  }
 
   void _removeItemFromScreen() async {
     if (_movingItem == null) return;
@@ -433,21 +434,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// ID предмета теперь строка (UUID с бэка).
   String? _getItemId(Map<String, dynamic> item) {
-    // 1) item_id — если есть и непустой
     final iid = item['item_id'];
-    if (iid != null && iid.toString().isNotEmpty) {
-      return iid.toString();
-    }
+    if (iid != null && iid.toString().isNotEmpty) return iid.toString();
 
-    // 2) id — если есть и непустой (в объектах из коллекции id = id предмета)
     final id = item['id'];
-    if (id != null && id.toString().isNotEmpty) {
-      return id.toString();
-    }
+    if (id != null && id.toString().isNotEmpty) return id.toString();
 
     return null;
   }
-  
+
+    /// Размер отрисовки предмета в пикселях.
+  /// 1) если сервер прислал scale — 80 * scale;
+  /// 2) иначе — fallback по имени.
+  double _getItemSize(Map<String, dynamic> item) {
+    final scaleRaw = item['scale'];
+    if (scaleRaw != null) {
+      final s = (scaleRaw is num)
+          ? scaleRaw.toDouble()
+          : double.tryParse(scaleRaw.toString());
+      if (s != null && s > 0) return 80.0 * s;
+    }
+
+    return 80.0;
+  }
+
   void _onScreenTap(TapDownDetails details) {
     final screenHeight = MediaQuery.of(context).size.height;
     if (details.localPosition.dy > screenHeight - 100) {
@@ -484,7 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final placed = await _itemsService.placeItem(
+        final placed = await _itemsService.placeItem(
       itemId,
       _tempPosition!.dx,
       _tempPosition!.dy,
@@ -493,18 +503,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (placed != null && mounted) {
       setState(() {
         if (_isMovingItem && _movingItem != null) {
-          // заменяем существующий объект на свежий с сервера
           final index = _placedItems.indexWhere(
             (p) => p['id']?.toString() == placed['id']?.toString(),
           );
           if (index != -1) {
             _placedItems[index] = placed;
           } else {
-            // на всякий случай, если не нашли — добавим
             _placedItems.add(placed);
           }
         } else {
-          // новый предмет — добавляем целиком то, что вернул сервер
           _placedItems.add(placed);
         }
       });
@@ -754,32 +761,32 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'assets/images/items/sunglasses.png';
   }
 
-  Widget _buildItemImage(
-    Map<String, dynamic> item, {
-    double size = 80,
-  }) {
+    Widget _buildItemImage(Map<String, dynamic> item, {double? size}) {
+    final actualSize = size ?? _getItemSize(item);
     return Image.network(
       _resolveItemIcon(item),
-      width: size,
-      height: size,
+      width: actualSize,
+      height: actualSize,
       fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) {
         return Image.asset(
-          _getItemIconFromName(item['item_name'] ?? ''),
-          width: size,
-          height: size,
+          _getItemIconFromName(
+            (item['item_name'] ?? item['name'] ?? '').toString(),
+          ),
+          width: actualSize,
+          height: actualSize,
           fit: BoxFit.contain,
           errorBuilder: (context, error2, stackTrace2) {
             return Container(
-              width: size,
-              height: size,
+              width: actualSize,
+              height: actualSize,
               decoration: BoxDecoration(
                 color: Colors.grey[300],
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 Icons.image,
-                size: size / 2,
+                size: actualSize / 2,
                 color: Colors.grey,
               ),
             );
@@ -853,18 +860,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         _movingItem != null &&
                         _getItemId(item) == _getItemId(_movingItem!)))
                 .map<Widget>((item) {
-              final x = (item['x'] as num?)?.toDouble();
-              final y = (item['y'] as num?)?.toDouble();
+              final x = _toDouble(item['x']);
+              final y = _toDouble(item['y']);
               if (x == null || y == null) {
                 debugPrint('!! Пропускаем предмет с битыми координатами: $item');
                 return const SizedBox.shrink();
               }
+
+              final size = _getItemSize(item);
+
               return Positioned(
-                left: x,
-                top: y,
+                left: x - size / 2,
+                top: y - size / 2,
                 child: GestureDetector(
                   onLongPress: () => _startMovingItem(item),
-                  child: _buildItemImage(item),
+                  child: _buildItemImage(item, size: size),
                 ),
               );
             }),
@@ -872,27 +882,27 @@ class _HomeScreenState extends State<HomeScreen> {
             // Перетаскиваемый
             if (_isMovingItem && _movingItem != null && _tempPosition != null)
               Positioned(
-                left: _tempPosition!.dx,
-                top: _tempPosition!.dy,
+                left: _tempPosition!.dx - _getItemSize(_movingItem!) / 2,
+                top: _tempPosition!.dy - _getItemSize(_movingItem!) / 2,
                 child: Opacity(
                   opacity: 0.7,
                   child: _buildItemImage(_movingItem!),
                 ),
               ),
 
-            // Размещаемый из коллекции
-            if (_isPlacingItem &&
-                _selectedItem != null &&
-                _tempPosition != null)
+            if (_isPlacingItem && _selectedItem != null && _tempPosition != null)
               Positioned(
-                left: _tempPosition!.dx,
-                top: _tempPosition!.dy,
-                child: Opacity(
-                  opacity: 0.7,
-                  child: _buildItemImage(_selectedItem!),
+                left: _tempPosition!.dx - _getItemSize(_selectedItem!) / 2,
+                top: _tempPosition!.dy - _getItemSize(_selectedItem!) / 2,
+                child: SizedBox(
+                  width: _getItemSize(_selectedItem!),
+                  height: _getItemSize(_selectedItem!),
+                  child: Opacity(
+                    opacity: 0.7,
+                    child: _buildItemImage(_selectedItem!),
+                  ),
                 ),
               ),
-
             Positioned(
               top: 20,
               left: 20,

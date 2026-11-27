@@ -44,6 +44,8 @@ class ItemsService {
   /// Разместить предмет. itemId теперь строка (UUID с бэка).
   /// Разместить предмет. Возвращает полный объект позиции с сервера
   /// (id, item_id, item_name, item_icon, x, y) или null при ошибке.
+    /// Разместить предмет. Возвращает полный объект позиции с сервера
+  /// (id, item_id, item_name, item_icon, x, y, scale) или null при ошибке.
   Future<Map<String, dynamic>?> placeItem(
     String itemId,
     double x,
