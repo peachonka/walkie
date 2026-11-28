@@ -1,16 +1,72 @@
-# frontend
+# Инструкция по запуску мобильного приложения «Волкай» (Walkie)
 
-A new Flutter project.
+Данная инструкция описывает процесс локального запуска клиентской части мобильного приложения «Волкай» для тестирования и демонстрации.
 
-## Getting Started
+## 1. Требования к окружению
 
-This project is a starting point for a Flutter application.
+Для запуска приложения необходимо установить:
+- **Flutter SDK** версии 3.10 или выше (рекомендуется последняя стабильная версия).
+- **Android Studio** (или Android SDK + эмулятор) либо физическое Android-устройство с включённой отладкой по USB.
+- **Git** для клонирования репозитория (если используется).
+- Установленный пакет `flutter doctor` должен показывать отсутствие критических ошибок для Android.
 
-A few resources to get you started if this is your first Flutter project:
+## 2. Клонирование репозитория
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Скопируйте проект на локальную машину и перейдите в корневую директорию:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+git clone <ссылка_на_репозиторий>
+cd walkie
+```
+
+## 3. Настройка переменных окружения
+
+В корне проекта создайте файл `.env` на основе шаблона `.env.example` и укажите адрес бэкенда:
+
+```env
+SUPABASE_URL=https://<адрес_сервера>/api
+SUPABASE_SECRET_KEY=<публичный_ключ_или_токен_для_теста>
+```
+
+> **Важно:** для тестирования используется тестовый сервер, доступный по HTTPS. Учётные данные выдаёт администратор бэкенда. В production-версии все запросы выполняются только по HTTPS.
+
+## 4. Установка зависимостей
+
+Выполните в корне проекта:
+
+```bash
+flutter pub get
+```
+
+## 5. Подготовка устройства
+
+- **Эмулятор:** запустите Android Emulator (AVD) через Android Studio.
+- **Физическое устройство:** подключите телефон по USB и включите «Отладку по USB» в настройках разработчика.
+
+Проверьте, что устройство видно Flutter:
+
+```bash
+flutter devices
+```
+
+## 6. Запуск приложения
+
+Выполните команду:
+
+```bash
+flutter run
+```
+
+Если подключено несколько устройств, укажите конкретное:
+
+```bash
+flutter run -d <device_id>
+```
+
+После сборки приложение запустится на устройстве. Для сборки релизного APK:
+
+```bash
+flutter build apk --release
+```
+
+Готовый файл будет находиться в `build/app/outputs/flutter-apk/app-release.apk`.
